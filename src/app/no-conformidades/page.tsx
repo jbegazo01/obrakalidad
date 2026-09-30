@@ -187,10 +187,10 @@ export default function NoConformidadesPage() {
                   <span className="text-right font-medium">{seleccionada.fechaApertura}</span>
                   <span className="text-muted-foreground">Fecha límite</span>
                   <span className="text-right font-medium">{seleccionada.fechaLimite}</span>
-                  {seleccionada.inspeccionOrigen && (
+                  {seleccionada.inspeccionOriginId && (
                     <>
                       <span className="text-muted-foreground">Inspección origen</span>
-                      <span className="text-right font-medium">{seleccionada.inspeccionOrigen}</span>
+                      <span className="text-right font-medium">{seleccionada.inspeccionOriginId}</span>
                     </>
                   )}
                 </div>

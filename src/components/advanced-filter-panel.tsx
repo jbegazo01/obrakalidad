@@ -142,7 +142,7 @@ export function AdvancedFilterPanel({
             {/* Resultado */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Resultado</label>
-              <Select value={resultado} onValueChange={onResultadoChange}>
+              <Select value={resultado || ""} onValueChange={(v) => onResultadoChange(v || "")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

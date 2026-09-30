@@ -91,8 +91,8 @@ export default function InspeccionesRegistroPage() {
   const countByState = {
     all: proyectoInspecciones.length,
     approved: proyectoInspecciones.filter((i) => i.resultado === "Aprobado").length,
-    observed: proyectoInspecciones.filter((i) => i.resultado === "Observado").length,
-    rejected: proyectoInspecciones.filter((i) => i.resultado === "Rechazado").length,
+    observed: proyectoInspecciones.filter((i) => i.resultado === "Falla").length,
+    rejected: proyectoInspecciones.filter((i) => i.resultado === "Falla").length,
     in_process: proyectoInspecciones.filter((i) => i.resultado === "En Proceso").length,
   };
 

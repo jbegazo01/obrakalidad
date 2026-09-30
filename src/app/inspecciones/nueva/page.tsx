@@ -114,7 +114,7 @@ export default function NuevaInspeccionPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Etapa constructiva</Label>
-              <Select value={etapaId} onValueChange={setEtapaId}>
+              <Select value={etapaId} onValueChange={(v) => setEtapaId(v || "")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona una etapa" />
                 </SelectTrigger>
@@ -130,7 +130,7 @@ export default function NuevaInspeccionPage() {
 
             <div className="space-y-1.5">
               <Label>Protocolo / Partida</Label>
-              <Select value={protocoloId} onValueChange={setProtocoloId}>
+              <Select value={protocoloId} onValueChange={(v) => setProtocoloId(v || "")}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecciona una partida" />
                 </SelectTrigger>

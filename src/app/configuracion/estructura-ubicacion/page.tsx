@@ -60,7 +60,7 @@ export default function EstructuraUbicacionPage() {
 
       <div className="mb-6">
         <label className="block text-sm font-medium text-slate-700 mb-2">Proyecto</label>
-        <Select value={selectedProyectoId} onValueChange={setSelectedProyectoId}>
+        <Select value={selectedProyectoId} onValueChange={(v) => setSelectedProyectoId(v || "")}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecciona un proyecto" />
           </SelectTrigger>
