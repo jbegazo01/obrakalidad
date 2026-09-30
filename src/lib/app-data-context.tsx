@@ -93,7 +93,7 @@ type NuevaNCInput = {
   severidad: string;
   responsable: string;
   fechaLimite: string;
-  inspeccionOrigen?: string;
+  inspeccionOriginId?: string;
 };
 
 type NuevaEstructuraInput = {
@@ -442,7 +442,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       responsable: input.responsable,
       fechaApertura: new Date().toISOString().slice(0, 10),
       fechaLimite: input.fechaLimite,
-      inspeccionOrigen: input.inspeccionOrigen,
+      inspeccionOriginId: input.inspeccionOriginId,
     };
     setNoConformidades((prev) => [nueva, ...prev]);
     return nueva;
