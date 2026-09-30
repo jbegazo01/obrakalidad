@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "mcp__1a59c906-04da-521d-bda7-7f71b9f9e01c__update",
+      "mcp__1a59c906-04da-521d-bda7-7f71b9f9e01c__create"
+    ]
+  }
+}
