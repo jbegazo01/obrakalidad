@@ -27,7 +27,16 @@ estructuras sismo mi_proyecto.yaml     # análisis sísmico estático E.030
 estructuras densidad mi_proyecto.yaml  # densidad mínima de muros E.070
 estructuras predim mi_proyecto.yaml    # predimensionamiento de losas y vigas
 estructuras plano mi_proyecto.yaml -o salida/E-01.dxf --png   # plano de estructuración
+estructuras analizar mi_proyecto.yaml -o salida/ --png        # análisis y diseño completo
 ```
+
+`analizar` (albañilería confinada, hasta 5 pisos o 15 m) hace el metrado por muro, el análisis
+sísmico con un modelo pseudo-3D (muros en voladizo con alas y columnas transformadas, diafragma
+rígido, torsión accidental y combinación 100 % + 30 %), todas las verificaciones de la E.070
+(esfuerzo axial, fisuración, Vm, resistencia global, agrietamiento de pisos superiores, refuerzo
+horizontal), el diseño de columnas de confinamiento (Tabla 11) y soleras, la verificación
+preliminar de placas y la cimentación (cimientos corridos y retícula ante el volteo). Genera la
+memoria de cálculo en Word y los planos E-01 (estructuración) y E-02 (cimentación).
 
 Ejemplos:
 
@@ -51,9 +60,9 @@ Unidades: tonf y m; resistencias de materiales en kgf/cm².
 |---|---|---|
 | E.020 Cargas | D.S. 011-2006-VIVIENDA | Cargas vivas y pesos unitarios |
 | E.030 Diseño Sismorresistente | R.M. 183-2026-VIVIENDA (03/05/2026), transitoria mod. por R.M. 217-2026-VIVIENDA | Implementada (estático, espectro, derivas) |
-| E.050 Suelos y Cimentaciones | R.M. 406-2018-VIVIENDA | Pendiente |
+| E.050 Suelos y Cimentaciones | R.M. 406-2018-VIVIENDA | Cimientos corridos (ancho por servicio, sismo con +30 %) |
 | E.060 Concreto Armado | D.S. 010-2009-VIVIENDA (en actualización, R.M. 066-2025) | Propiedades básicas |
-| E.070 Albañilería | D.S. 011-2006-VIVIENDA | Densidad, espesor, axial, corte |
+| E.070 Albañilería | D.S. 011-2006-VIVIENDA | Cap. 7 y 8 completos (análisis y diseño de albañilería confinada) |
 | E.090 Estructuras Metálicas | D.S. 011-2006-VIVIENDA | Pendiente |
 
 Cambios de la E.030-2026 ya incorporados: perfiles S0–S5 por Vs30, N60 o Su; S, TP y TL
@@ -71,8 +80,8 @@ Ese texto anterior aún no está implementado.
 |---|---|---|
 | 0 | Base normativa, ficha del proyecto, CLI | Hecho |
 | 1 | Lectura del PDF de arquitectura → ficha | Pendiente |
-| 2 | Albañilería confinada: metrado, análisis sísmico, diseño de muros, cimentación | Pendiente |
-| 3 | Planos DXF y memoria de cálculo (Word/PDF) | Iniciada: planta de estructuración, predimensionamiento |
+| 2 | Albañilería confinada: metrado, análisis sísmico, diseño de muros, cimentación | Hecho |
+| 3 | Planos DXF y memoria de cálculo (Word/PDF) | Iniciada: E-01, E-02 y memoria; faltan detalles y E.060 |
 | 4 | Concreto armado aporticado y dual | Pendiente |
 | 5 | Estructuras metálicas | Pendiente |
 | 6 | Interfaz web | Pendiente |

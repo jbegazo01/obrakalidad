@@ -57,11 +57,13 @@ def cotas(ficha: Ficha) -> list[float]:
     return resultado
 
 
-def analisis_estatico(ficha: Ficha) -> ResultadoSismico:
+def analisis_estatico(ficha: Ficha, pesos: list[float] | None = None) -> ResultadoSismico:
+    """Análisis estático E.030. `pesos` (tonf por nivel) reemplaza a la estimación de la ficha,
+    p. ej. con los pesos del metrado."""
     sitio = e030.parametros_sitio(ficha.zona, ficha.perfil_suelo, ficha.vs30)
     U = e030.factor_uso(ficha.categoria, ficha.zona, ficha.aislamiento)
     Ia, Ip = e030.factores_irregularidad(ficha.irregularidades)
-    pesos = pesos_sismicos(ficha)
+    pesos = pesos if pesos is not None else pesos_sismicos(ficha)
     alturas = cotas(ficha)
     P = sum(pesos)
     hn = ficha.altura_total

@@ -51,6 +51,9 @@ class Ficha:
     niveles: list[Nivel]
     muros: list[Muro] = field(default_factory=list)
     geometria: Geometria | None = None
+    cargas: dict = field(default_factory=dict)  # opciones del metrado (ver metrado.OpcionesMetrado)
+    cimentacion: dict = field(default_factory=dict)  # opciones de cimentación
+    capacidad_portante_supuesta: bool = False
 
     @property
     def n_pisos(self) -> int:
@@ -174,6 +177,9 @@ def ficha_desde_dict(datos: dict) -> Ficha:
         niveles=niveles,
         muros=muros,
         geometria=geometria,
+        cargas=datos.get("cargas") or {},
+        cimentacion=datos.get("cimentacion") or {},
+        capacidad_portante_supuesta=bool(sitio.get("capacidad_portante_supuesta", False)),
     )
 
 
@@ -243,7 +249,7 @@ def validar(ficha: Ficha) -> tuple[list[str], list[str]]:
         if m.material == "albanileria" and m.longitud > separacion + 1e-9:
             advertencias.append(
                 f"Muro {m.id} (L = {m.longitud:g} m): requiere columnas de confinamiento a no más "
-                f"de {separacion:g} m (E.070 art. 20); divídalo en paños."
+                f"de {separacion:g} m (E.070 art. 20.1b); divídalo en paños."
             )
 
     if ficha.dimension_x is None or ficha.dimension_y is None:

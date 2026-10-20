@@ -205,6 +205,55 @@ def cmd_plano(args) -> int:
     return 0
 
 
+def cmd_analizar(args) -> int:
+    """Análisis y diseño completo de albañilería confinada: memoria y planos."""
+    ficha, errores = _cargar(args.ficha)
+    if ficha is None or errores:
+        return 1
+    from . import albanileria, cimentacion, memoria
+    from .planos import plano_cimentacion, plano_estructuracion
+
+    try:
+        res = albanileria.analizar(ficha)
+        cim = cimentacion.disenar(res)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"ANÁLISIS Y DISEÑO – ALBAÑILERÍA CONFINADA (E.070, E.030-{e030.VERSION})")
+    print(f"Proyecto: {ficha.nombre}\n")
+    print(f"Peso sísmico (metrado): P = {_f(res.sismo.P, 1)} tonf; V = {_f(res.sismo.V, 2)} tonf (R = {res.R:g})")
+    for d in ("X", "Y"):
+        print(f"  Deriva máx. {d}: {_f(float(res.derivas[d].max()), 4)}   "
+              f"Δmax/Δprom: {_f(float(res.relacion_torsion[d].max()), 2)}")
+    print("\nResistencia al corte del edificio (E.070 art. 26.4)")
+    for g in res.globales:
+        print(f"  {g.direccion} piso {g.piso}: ΣVm = {_f(g.suma_Vm, 1)} ≥ VE = {_f(g.VE, 1)}  "
+              f"{'cumple' if g.cumple else 'NO CUMPLE'}")
+    malos = [v for v in res.verificaciones if not (v.ok_axial and v.ok_fisuracion)]
+    print(f"\nMuros: {len(res.verificaciones)} verificaciones por entrepiso, {len(malos)} con observaciones.")
+    print(f"Columnas: {len(res.tipos_columna)} tipos; cimientos: {len(cim.cimientos)} elementos.")
+    for o in res.observaciones + cim.observaciones:
+        print(f"  · {o}")
+
+    salida = Path(args.salida)
+    salida.mkdir(parents=True, exist_ok=True)
+    sismo = analisis.analisis_estatico(ficha, pesos=res.metrado.pesos_sismicos)
+    archivos = [memoria.generar(res, cim, salida / "memoria_de_calculo.docx")]
+    for plano, nombre in ((plano_estructuracion(ficha, sismo, "E-01", diseno=res), "E-01"),
+                          (plano_cimentacion(ficha, res, cim, "E-02"), "E-02")):
+        ruta = salida / f"{nombre}.dxf"
+        plano.guardar(ruta)
+        archivos.append(ruta)
+        if args.png:
+            plano.exportar_png(ruta.with_suffix(".png"))
+            archivos.append(ruta.with_suffix(".png"))
+    print("\nArchivos:")
+    for a in archivos:
+        print(f"  {a}")
+    return 0 if res.cumple and cim.cumple else 2
+
+
 def construir_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="estructuras", description="Asistente de diseño estructural (RNE Perú).")
     sub = p.add_subparsers(dest="comando", required=True)
@@ -233,6 +282,12 @@ def construir_parser() -> argparse.ArgumentParser:
     plano.add_argument("--lamina", default="E-01")
     plano.add_argument("--png", action="store_true", help="Generar también una vista previa PNG")
     plano.set_defaults(func=cmd_plano)
+
+    analizar = sub.add_parser("analizar", help="Análisis y diseño de albañilería confinada: memoria y planos")
+    analizar.add_argument("ficha")
+    analizar.add_argument("-o", "--salida", default="salida")
+    analizar.add_argument("--png", action="store_true", help="Generar vistas previas PNG de los planos")
+    analizar.set_defaults(func=cmd_analizar)
     return p
 
 

@@ -19,6 +19,7 @@ sitio:
   vs30_m_s: null          # si el EMS la reporta, se interpolan S, TP y TL
   ts_s: null              # periodo H/V, obligatorio para categorías A y B en zona 4
   capacidad_portante_kgf_cm2: null
+  capacidad_portante_supuesta: false   # true si aún no hay EMS
 
 estructura:
   sistema: albanileria    # ver `estructuras sistemas`; o sistema_x / sistema_y por separado
@@ -26,6 +27,20 @@ estructura:
   dimension_x_m: null     # dimensiones totales en planta
   dimension_y_m: null
   aislamiento: false
+
+cargas:                  # E.020, tonf/m² (usadas por `estructuras analizar`)
+  piso_terminado_tonf_m2: 0.10
+  tabiqueria_tonf_m2: 0.10
+  acabados_azotea_tonf_m2: 0.10
+  sobrecarga_tonf_m2: 0.20
+  sobrecarga_azotea_tonf_m2: 0.10
+
+cimentacion:
+  df_m: 1.00
+  h_cimiento_m: 0.80
+  h_sobrecimiento_m: 0.40
+  ancho_minimo_m: 0.40
+  linderos: []           # ejes en el límite de propiedad (cimientos excéntricos)
 
 materiales:
   unidad_albanileria: kk_industrial
@@ -47,6 +62,8 @@ niveles:
     azotea: true
 
 # Muros del primer piso para la densidad (E.070). Longitud incluye columnas de confinamiento.
+# Para `estructuras analizar` defina además la sección `geometria` (ejes, vigas, losas, huecos)
+# y los muros con coordenadas; ver ejemplos/propuesta_vivienda_8x20.yaml.
 muros: []
 #  - {id: X1, direccion: x, longitud_m: 3.00, espesor_m: 0.13}
-#  - {id: P1, direccion: y, longitud_m: 1.50, espesor_m: 0.15, material: concreto}
+#  - {id: P1, desde: [A, 1], hasta: [A, 2], espesor_m: 0.15, material: concreto}

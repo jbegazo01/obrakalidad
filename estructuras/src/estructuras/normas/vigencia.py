@@ -70,8 +70,10 @@ NORMAS: tuple[Norma, ...] = (
         titulo="Albañilería",
         dispositivos=("D.S. N° 011-2006-VIVIENDA",),
         implementada=(
-            "Resistencias de unidades de arcilla (Tabla 9), espesor efectivo mínimo, densidad "
-            "mínima de muros, esfuerzo axial máximo, resistencia al corte y control de fisuración."
+            "Cap. 7 y 8 (texto oficial de El Peruano, 10/06/2006): Tabla 9, espesor efectivo, "
+            "densidad de muros, esfuerzo axial, rigidez con alas (24.6), fisuración (26.2), Vm "
+            "(26.3), resistencia global (26.4), refuerzo horizontal (27.1), agrietamiento de pisos "
+            "superiores (27.2), confinamientos con la Tabla 11 (27.3) y pisos no agrietados (27.4)."
         ),
         notas=(
             "La E.070 fue calibrada con la zonificación de la E.030 de 2003 (3 zonas). Se usa "

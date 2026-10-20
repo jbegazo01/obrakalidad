@@ -247,7 +247,7 @@ def _dibujar_losas(pl: Plano, geo: Geometria):
                      capa="EST-HUECOS", alin=TextEntityAlignment.MIDDLE_CENTER)
 
 
-def _especificaciones(ficha: Ficha) -> list[str]:
+def _especificaciones(ficha: Ficha, diseno=None) -> list[str]:
     lineas = [
         "CONCRETO ARMADO (E.060)",
         f"  f'c = {ficha.fc:g} kg/cm²: columnas, vigas, losas y placas",
@@ -280,6 +280,12 @@ def _especificaciones(ficha: Ficha) -> list[str]:
         "  2. Dimensiones de predimensionamiento: se confirman con el diseño de cada elemento.",
         "  3. Borrador generado por el programa; requiere revisión y firma del ingeniero.",
     ]
+    if diseno is not None:
+        horizontales = sorted({f"{v.muro} (piso {v.piso})" for v in diseno.verificaciones if v.refuerzo_horizontal})
+        if horizontales:
+            lineas.append("  4. Refuerzo horizontal 1 %%c 1/4\" c/2 hiladas (soga) o c/hilada (cabeza):")
+            for i in range(0, len(horizontales), 4):
+                lineas.append("     " + ", ".join(horizontales[i:i + 4]))
     return lineas
 
 
@@ -302,7 +308,90 @@ def _filas_sismo(r: ResultadoSismico) -> list[list[str]]:
     ]
 
 
-def plano_estructuracion(ficha: Ficha, resultado: ResultadoSismico, lamina: str = "E-01") -> Plano:
+def _lamina(pl: Plano, ficha: Ficha, geo: Geometria, titulo: str, nombre_plano: str, lamina: str):
+    """Título del dibujo, marco A1 y membrete. Devuelve (x0, y0, ancho, alto) del marco."""
+    xs, ys = list(geo.ejes_x.values()), list(geo.ejes_y.values())
+    xmin, xmax, ymin = min(xs), max(xs), min(ys)
+    pl.texto(titulo, (xmin + xmax) / 2, ymin - 4.0, h=H_TITULO,
+             alin=TextEntityAlignment.MIDDLE_CENTER, fuente=FUENTE_TITULO)
+    pl.texto(f"ESC. 1/{ESCALA}", (xmin + xmax) / 2, ymin - 4.6, h=H_SUBTITULO,
+             alin=TextEntityAlignment.MIDDLE_CENTER)
+
+    x0, y0 = xmin - 6.0, ymin - 7.0
+    ancho, alto = LAMINA_A1
+    pl.rectangulo(x0, y0, x0 + ancho, y0 + alto, "EST-MARCO")
+    pl.rectangulo(x0 + 0.5, y0 + 0.5, x0 + ancho - 0.5, y0 + alto - 0.5, "EST-MARCO")
+
+    mx1, my1 = x0 + ancho - 13.0, y0 + 0.5
+    mx2, my2 = x0 + ancho - 0.5, y0 + 6.0
+    pl.rectangulo(mx1, my1, mx2, my2, "EST-MARCO")
+    ubic = ", ".join(v for v in (ficha.ubicacion.get("distrito"), ficha.ubicacion.get("provincia"),
+                                  ficha.ubicacion.get("departamento")) if v)
+    filas = [
+        ("PROYECTO:", ficha.nombre.upper()),
+        ("PROPIETARIO:", ficha.propietario or "—"),
+        ("UBICACIÓN:", ubic or "—"),
+        ("PLANO:", nombre_plano),
+        ("ESCALA:", f"1/{ESCALA}"),
+        ("FECHA:", datetime.date.today().strftime("%d/%m/%Y")),
+        ("ING. RESPONSABLE:", "______________________   CIP N° ________"),
+    ]
+    yy = my2 - 0.45
+    for etiqueta, valor in filas:
+        pl.texto(etiqueta, mx1 + 0.3, yy, h=H_ETIQUETA, fuente=FUENTE_TITULO)
+        pl.texto(valor, mx1 + 3.3, yy, h=H_ETIQUETA)
+        yy -= 0.55
+    pl.linea((mx2 - 3.0, my1), (mx2 - 3.0, my1 + 1.6), "EST-MARCO")
+    pl.linea((mx2 - 3.0, my1 + 1.6), (mx2, my1 + 1.6), "EST-MARCO")
+    pl.texto("LÁMINA", mx2 - 1.5, my1 + 1.3, h=H_ETIQUETA, alin=TextEntityAlignment.MIDDLE_CENTER)
+    pl.texto(lamina, mx2 - 1.5, my1 + 0.6, h=0.5, alin=TextEntityAlignment.MIDDLE_CENTER, fuente=FUENTE_TITULO)
+    pl.texto(f"Generado con estructuras v{__version__} – BORRADOR", mx1 + 0.3, my1 + 0.25, h=0.1)
+    return x0, y0, ancho, alto
+
+
+def _bloque_texto(pl: Plano, titulo: str, lineas: list[str], x: float, y: float) -> float:
+    """Título y líneas de texto; las líneas que empiezan con espacio van sangradas. Devuelve la y final."""
+    pl.texto(titulo, x, y, h=H_SUBTITULO, fuente=FUENTE_TITULO)
+    y -= 0.55
+    for linea in lineas:
+        es_titulo = not linea.startswith(" ")
+        pl.texto(linea.strip(), x + (0 if es_titulo else 0.3), y, h=H_ETIQUETA,
+                 fuente=FUENTE_TITULO if es_titulo else FUENTE)
+        y -= 0.32
+    return y
+
+
+def columnas_disenadas(diseno) -> list[Columna]:
+    """Columnas con la sección del diseño, ubicadas dentro del muro que gobierna su peralte."""
+    resultado = []
+    for tipo, datos in diseno.tipos_columna.items():
+        t, d = datos["t"] / 100, datos["d"] / 100
+        for nudo in datos["nodos"]:
+            candidatas = [c for c in diseno.columnas
+                          if abs(c.posicion[0] - nudo[0]) < 1e-3 and abs(c.posicion[1] - nudo[1]) < 1e-3]
+            gobierna = max(candidatas, key=lambda c: c.d)
+            w = diseno.muro(gobierna.muro)
+            s = w.coordenada(nudo)
+            # Dentro del muro: desde la cara del muro transversal en los extremos, centrada en el resto.
+            if abs(s - w.s0) < 1e-6:
+                a = s - 0.065
+                b = a + d
+            elif abs(s - w.s1) < 1e-6:
+                b = s + 0.065
+                a = b - d
+            else:
+                a, b = s - d / 2, s + d / 2
+            centro_s = (a + b) / 2
+            if w.direccion == "x":
+                resultado.append(Columna(tipo, (centro_s, w.linea), d, t))
+            else:
+                resultado.append(Columna(tipo, (w.linea, centro_s), t, d))
+    return resultado
+
+
+def plano_estructuracion(ficha: Ficha, resultado: ResultadoSismico, lamina: str = "E-01", diseno=None) -> Plano:
+    """Planta de estructuración. Con `diseno` (resultado de albanileria.analizar) dibuja las
+    columnas diseñadas y los cuadros de columnas, soleras y placas del diseño."""
     geo = ficha.geometria
     if geo is None:
         raise ValueError("La ficha no tiene 'geometria'; no se puede dibujar el plano.")
@@ -313,31 +402,20 @@ def plano_estructuracion(ficha: Ficha, resultado: ResultadoSismico, lamina: str 
     _dibujar_vigas(pl, geo)
     _dibujar_muros(pl, ficha)
     conf = columnas_confinamiento(ficha.muros)
-    _dibujar_columnas(pl, conf + geo.columnas)
+    if diseno is None:
+        _dibujar_columnas(pl, conf + geo.columnas)
+    else:
+        cols = columnas_disenadas(diseno)
+        _dibujar_columnas(pl, [Columna(c.id, c.centro, c.dx, c.dy, "confinamiento") for c in cols] + geo.columnas)
+        for c in cols:
+            pl.texto(c.id, c.centro[0] + c.dx / 2 + 0.06, c.centro[1] + c.dy / 2 + 0.06, h=0.12,
+                     capa="EST-TEXTOS")
 
-    xs, ys = list(geo.ejes_x.values()), list(geo.ejes_y.values())
-    xmin, xmax, ymin = min(xs), max(xs), min(ys)
-    pl.texto("PLANTA DE ESTRUCTURACIÓN – PISO TÍPICO", (xmin + xmax) / 2, ymin - 4.0, h=H_TITULO,
-             alin=TextEntityAlignment.MIDDLE_CENTER, fuente=FUENTE_TITULO)
-    pl.texto(f"ESC. 1/{ESCALA}", (xmin + xmax) / 2, ymin - 4.6, h=H_SUBTITULO,
-             alin=TextEntityAlignment.MIDDLE_CENTER)
-
-    # Marco de la lámina A1.
-    x0, y0 = xmin - 6.0, ymin - 7.0
-    ancho, alto = LAMINA_A1
-    pl.rectangulo(x0, y0, x0 + ancho, y0 + alto, "EST-MARCO")
-    pl.rectangulo(x0 + 0.5, y0 + 0.5, x0 + ancho - 0.5, y0 + alto - 0.5, "EST-MARCO")
-
-    # Columna 1 de cuadros: especificaciones técnicas.
-    xc = xmax + 6.0
-    yc = y0 + alto - 1.5
-    pl.texto("ESPECIFICACIONES TÉCNICAS", xc, yc, h=H_SUBTITULO, fuente=FUENTE_TITULO)
-    yy = yc - 0.55
-    for linea in _especificaciones(ficha):
-        es_titulo = not linea.startswith(" ")
-        pl.texto(linea.strip(), xc + (0 if es_titulo else 0.3), yy, h=H_ETIQUETA,
-                 fuente=FUENTE_TITULO if es_titulo else FUENTE)
-        yy -= 0.32
+    x0, y0, ancho, alto = _lamina(pl, ficha, geo, "PLANTA DE ESTRUCTURACIÓN – PISO TÍPICO",
+                                  "ESTRUCTURAS – PLANTA DE ESTRUCTURACIÓN", lamina)
+    xs = list(geo.ejes_x.values())
+    xc = max(xs) + 6.0
+    yy = _bloque_texto(pl, "ESPECIFICACIONES TÉCNICAS", _especificaciones(ficha, diseno), xc, y0 + alto - 1.5)
 
     # Leyenda.
     yy -= 0.4
@@ -357,58 +435,167 @@ def plano_estructuracion(ficha: Ficha, resultado: ResultadoSismico, lamina: str 
     pl.linea((xc, yy + 0.2), (xc + 0.8, yy + 0.2), "EST-VIGAS")
     pl.texto("Viga peraltada", xc + 1.0, yy + 0.05, h=H_ETIQUETA)
 
-    # Columna 2 de cuadros: parámetros sísmicos, columnas y vigas.
+    # Cuadros.
     xt = xc + 11.0
     yt = y0 + alto - 1.5
     yt = pl.tabla(xt, yt, [3.0, 2.0, 2.0], _filas_sismo(resultado),
                   titulo=f"PARÁMETROS SÍSMICOS (E.030-{e030.VERSION})")
 
-    filas_col = [["Tipo", "Sección", "Refuerzo (preliminar)", "Estribos (preliminar)"]]
-    espesores = sorted({c.dy if c.dx == 0.25 else c.dx for c in conf})
-    for t in espesores:
-        as_min = e070.acero_minimo_columna(ficha.fc, t * 100 * 25, ficha.fy)
-        filas_col.append(["C-1 confinamiento", _sec(t, 0.25), cuatro_barras(as_min), '%%c 1/4": 1@.05, 4@.10, r@.25'])
+    if diseno is None:
+        filas_col = [["Tipo", "Sección", "Refuerzo (preliminar)", "Estribos (preliminar)"]]
+        espesores = sorted({c.dy if c.dx == 0.25 else c.dx for c in conf})
+        for t in espesores:
+            as_min = e070.acero_minimo_columna(ficha.fc, t * 100 * 25, ficha.fy)
+            filas_col.append(["C-1 confinamiento", _sec(t, 0.25), cuatro_barras(as_min), '%%c 1/4": 1@.05, 4@.10, r@.25'])
+        anchos = [2.8, 1.2, 2.4, 3.6]
+    else:
+        filas_col = [["Tipo", "t x d", "Refuerzo", "Estribos"]]
+        for tipo, d in diseno.tipos_columna.items():
+            filas_col.append([tipo, _sec(d["t"] / 100, d["d"] / 100), d["barras"], d["estribos"]])
+        anchos = [1.2, 1.2, 4.2, 4.0]
     for c in geo.columnas:
         # Cuantía mínima de 1 % para columnas (E.060 art. 10.9).
         as_min = 0.01 * c.dx * c.dy * 1e4
         filas_col.append([c.id, _sec(c.dx, c.dy), cuatro_barras(as_min), '%%c 3/8": 1@.05, 5@.10, r@.25'])
-    yt = pl.tabla(xt, yt - 1.2, [2.8, 1.2, 2.4, 3.6], filas_col, titulo="CUADRO DE COLUMNAS")
+    yt = pl.tabla(xt, yt - 1.2, anchos, filas_col, titulo="CUADRO DE COLUMNAS")
+
+    if diseno is not None:
+        soleras: dict[tuple, list[str]] = {}
+        for mid in sorted({s.muro for s in diseno.soleras}):
+            maximo = max((x for x in diseno.soleras if x.muro == mid), key=lambda x: x.As_req)
+            soleras.setdefault((diseno.muro(mid).espesor, maximo.barras), []).append(mid)
+        h_losa = max(l.h for l in geo.losas)
+        filas = [["Tipo", "Sección", "Refuerzo", "Muros"]]
+        for k, ((t, barras), muros) in enumerate(sorted(soleras.items()), start=1):
+            filas.append([f"VS-{k}", _sec(t, h_losa), barras, ", ".join(muros)])
+        yt = pl.tabla(xt, yt - 1.2, [1.2, 1.2, 3.6, 4.6], filas,
+                      titulo='VIGAS SOLERAS (estribos %%c 1/4": 1@.05, 4@.10, r@.25)')
+        if diseno.placas:
+            filas = [["Placa", "t (m)", "Refuerzo mín. (E.060)", "As extremo"]]
+            for pid in sorted({p.muro for p in diseno.placas}):
+                pmax = max((p for p in diseno.placas if p.muro == pid), key=lambda p: p.As_extremo)
+                w = diseno.muro(pid)
+                filas.append([pid, _f(w.espesor), f"%%c 3/8\" @ .20 h y v (rho = {pmax.rho_h:.4f})",
+                              f"{pmax.As_extremo:.1f} cm²"])
+            yt = pl.tabla(xt, yt - 1.2, [1.2, 1.0, 5.0, 2.0], filas, titulo="PLACAS (preliminar, ver memoria)")
 
     filas_vig = [["Viga", "b x h (m)", "Luz (m)", "h = L/12 – L/10"]]
     for v in geo.vigas:
         sv = seccion_viga(v.luz)
         filas_vig.append([v.id, _sec(v.b, v.h), _f(v.luz), f"{_f(sv.h_min)} – {_f(sv.h_max)}"])
-    yt = pl.tabla(xt, yt - 1.2, [2.0, 2.0, 1.6, 3.0], filas_vig, titulo="CUADRO DE VIGAS (refuerzo por diseñar)")
-
-    filas_los = [["Paño", "Luz (m)", "h req. = L/25", "h adoptado"]]
-    for i, losa in enumerate(geo.losas, start=1):
-        luz = luz_libre_losa(losa)
-        filas_los.append([str(i), _f(luz), _f(espesor_aligerado(luz)), _f(losa.h)])
-    pl.tabla(xt, yt - 1.2, [1.2, 1.6, 2.6, 2.2], filas_los, titulo="LOSAS ALIGERADAS")
-
-    # Membrete.
-    mx1, my1 = x0 + ancho - 13.0, y0 + 0.5
-    mx2, my2 = x0 + ancho - 0.5, y0 + 6.0
-    pl.rectangulo(mx1, my1, mx2, my2, "EST-MARCO")
-    ubic = ", ".join(v for v in (ficha.ubicacion.get("distrito"), ficha.ubicacion.get("provincia"),
-                                  ficha.ubicacion.get("departamento")) if v)
-    filas = [
-        ("PROYECTO:", ficha.nombre.upper()),
-        ("PROPIETARIO:", ficha.propietario or "—"),
-        ("UBICACIÓN:", ubic or "—"),
-        ("PLANO:", "ESTRUCTURAS – PLANTA DE ESTRUCTURACIÓN"),
-        ("ESCALA:", f"1/{ESCALA}"),
-        ("FECHA:", datetime.date.today().strftime("%d/%m/%Y")),
-        ("ING. RESPONSABLE:", "______________________   CIP N° ________"),
-    ]
-    yy = my2 - 0.45
-    for etiqueta, valor in filas:
-        pl.texto(etiqueta, mx1 + 0.3, yy, h=H_ETIQUETA, fuente=FUENTE_TITULO)
-        pl.texto(valor, mx1 + 3.3, yy, h=H_ETIQUETA)
-        yy -= 0.55
-    pl.linea((mx2 - 3.0, my1), (mx2 - 3.0, my1 + 1.6), "EST-MARCO")
-    pl.linea((mx2 - 3.0, my1 + 1.6), (mx2, my1 + 1.6), "EST-MARCO")
-    pl.texto("LÁMINA", mx2 - 1.5, my1 + 1.3, h=H_ETIQUETA, alin=TextEntityAlignment.MIDDLE_CENTER)
-    pl.texto(lamina, mx2 - 1.5, my1 + 0.6, h=0.5, alin=TextEntityAlignment.MIDDLE_CENTER, fuente=FUENTE_TITULO)
-    pl.texto(f"Generado con estructuras v{__version__} – BORRADOR", mx1 + 0.3, my1 + 0.25, h=0.1)
+    pl.tabla(xt, yt - 1.2, [2.0, 2.0, 1.6, 3.0], filas_vig, titulo="CUADRO DE VIGAS (refuerzo por diseñar)")
     return pl
+
+
+def _tipos_cimiento(cim) -> dict:
+    """Agrupa los cimientos corridos por ancho y las zapatas por dimensiones."""
+    tipos: dict[str, dict] = {}
+    corridos = sorted({c.ancho for c in cim.cimientos if c.tipo == "corrido"})
+    for k, b in enumerate(corridos, start=1):
+        tipos[f"CC-{k}"] = {"ancho": b, "elementos": [c for c in cim.cimientos if c.tipo == "corrido" and c.ancho == b]}
+    for k, c in enumerate([c for c in cim.cimientos if c.tipo == "placa"], start=1):
+        tipos[f"ZP-{k}"] = {"ancho": c.ancho, "elementos": [c]}
+    for k, c in enumerate([c for c in cim.cimientos if c.tipo == "aislada"], start=1):
+        tipos[f"Z-{k}"] = {"ancho": c.ancho, "elementos": [c]}
+    return tipos
+
+
+def plano_cimentacion(ficha: Ficha, diseno, cim, lamina: str = "E-02") -> Plano:
+    geo = ficha.geometria
+    pl = Plano()
+    pl.doc.layers.add("EST-CIMIENTOS", color=5, linetype="DASHED", lineweight=25)
+    _dibujar_ejes(pl, geo)
+    tipos = _tipos_cimiento(cim)
+    etiqueta = {id(c): k for k, d in tipos.items() for c in d["elementos"]}
+
+    for c in cim.cimientos:
+        dx, dy = c.dimensiones_xy()
+        if c.tipo != "aislada":
+            # El cimiento corrido se prolonga medio ancho más allá de los extremos del muro.
+            if c.direccion == "x":
+                dx += c.ancho
+            else:
+                dy += c.ancho
+        x, y = c.centro
+        pl.rectangulo(x - dx / 2, y - dy / 2, x + dx / 2, y + dy / 2, "EST-CIMIENTOS")
+        if c.direccion == "x":
+            pl.texto(f"{etiqueta[id(c)]}", x, y - c.ancho / 2 - 0.1, h=H_ETIQUETA,
+                     alin=TextEntityAlignment.TOP_CENTER)
+        else:
+            pl.texto(f"{etiqueta[id(c)]}", x + c.ancho / 2 + 0.1, y, h=H_ETIQUETA,
+                     alin=TextEntityAlignment.TOP_CENTER, rot=90)
+    _dibujar_muros(pl, ficha)
+    cols = columnas_disenadas(diseno)
+    _dibujar_columnas(pl, [Columna(c.id, c.centro, c.dx, c.dy, "confinamiento") for c in cols] + geo.columnas)
+
+    x0, y0, ancho, alto = _lamina(pl, ficha, geo, "PLANTA DE CIMENTACIÓN", "ESTRUCTURAS – CIMENTACIÓN", lamina)
+    xc = max(geo.ejes_x.values()) + 6.0
+    q = f"{ficha.capacidad_portante:g} kg/cm²" if ficha.capacidad_portante else "PENDIENTE"
+    lineas = [
+        "TERRENO",
+        f"  Capacidad portante admisible: {q}" + (" (SUPUESTA, confirmar con EMS)" if ficha.capacidad_portante_supuesta else ""),
+        f"  Profundidad de cimentación: Df = {cim.opciones.df:.2f} m bajo el terreno natural",
+        "CIMIENTOS CORRIDOS",
+        "  Concreto ciclópeo 1:10 + 30 % piedra grande (máx. 6\")",
+        f"  Peralte {cim.opciones.h_cimiento:.2f} m",
+        "SOBRECIMIENTOS",
+        f"  Concreto 1:8 + 25 % piedra mediana (máx. 3\"), ancho = muro, h = {cim.opciones.h_sobrecimiento:.2f} m",
+        "ZAPATAS Y CIMIENTOS DE PLACAS",
+        f"  Concreto f'c = {ficha.fc:g} kg/cm², refuerzo según diseño (E.060)",
+        "COLUMNAS",
+        "  Refuerzo vertical anclado en el cimiento con gancho a 90° de 0.25 m",
+        "NOTAS",
+        "  1. No cimentar sobre relleno, material orgánico ni desmonte.",
+        "  2. Los cimientos forman una retícula continua (no interrumpirlos).",
+        "  3. Verificar el nivel de fondo de cimentación con el EMS.",
+    ]
+    yy = _bloque_texto(pl, "ESPECIFICACIONES DE CIMENTACIÓN", lineas, xc, y0 + alto - 1.5)
+
+    xt = xc + 11.0
+    yt = y0 + alto - 1.5
+    filas = [["Tipo", "Ancho (m)", "Peralte (m)", "Elementos"]]
+    for k, d in tipos.items():
+        e = d["elementos"]
+        filas.append([k, _f(d["ancho"]) if not k.startswith("Z-") else f"{_f(e[0].largo)} x {_f(e[0].ancho)}",
+                      _f(e[0].peralte), ", ".join(c.elemento for c in e)])
+    yt = pl.tabla(xt, yt, [1.2, 1.8, 1.6, 6.0], filas, titulo="CUADRO DE CIMIENTOS")
+
+    # Corte típico de cimiento corrido.
+    b = max(d["ancho"] for k, d in tipos.items() if k.startswith("CC-")) if any(
+        k.startswith("CC-") for k in tipos) else 0.5
+    _corte_tipico(pl, xt + 1.0, yt - 3.0, b, cim.opciones.h_cimiento, cim.opciones.h_sobrecimiento, cim.opciones.df)
+    return pl
+
+
+def _corte_tipico(pl: Plano, x: float, ytop: float, B: float, hc: float, hs: float, df: float, t: float = 0.13):
+    """Corte típico de cimiento corrido, dibujado a escala 1/25 (doble del plano)."""
+    k = 2.0  # factor de escala del detalle respecto de la planta
+    pl.texto("CORTE TÍPICO DE CIMIENTO CORRIDO (ESC. 1/25)", x, ytop + 0.4, h=H_SUBTITULO, fuente=FUENTE_TITULO)
+    base = ytop - (df + 0.5) * k
+    xc = x + 2.5
+    # Cimiento
+    pl.rectangulo(xc - B / 2 * k, base, xc + B / 2 * k, base + hc * k, "EST-MUROS")
+    pl.rectangulo(xc - B / 2 * k, base, xc + B / 2 * k, base + hc * k, "EST-MUROS-ACHURADO", relleno="AR-CONC",
+                  escala_patron=0.01)
+    # Sobrecimiento
+    ys = base + hc * k
+    pl.rectangulo(xc - t / 2 * k, ys, xc + t / 2 * k, ys + hs * k, "EST-MUROS")
+    # Muro
+    pl.rectangulo(xc - t / 2 * k, ys + hs * k, xc + t / 2 * k, ys + hs * k + 1.0, "EST-MUROS-ACHURADO", relleno="ANSI31")
+    # Terreno natural y piso
+    ntn = base + df * k
+    pl.linea((xc - 2.0, ntn), (xc + 2.0, ntn), "EST-COTAS")
+    pl.texto("N.T.N.", xc - 2.1, ntn, h=H_ETIQUETA, alin=TextEntityAlignment.MIDDLE_RIGHT)
+    npt = ys + hs * k
+    pl.linea((xc - 1.2, npt), (xc - t / 2 * k, npt), "EST-COTAS")
+    pl.texto("N.P.T.", xc - 1.3, npt, h=H_ETIQUETA, alin=TextEntityAlignment.MIDDLE_RIGHT)
+    pl.texto(f"B = {B:.2f}", xc, base - 0.25, h=H_ETIQUETA, alin=TextEntityAlignment.TOP_CENTER)
+    pl.texto(f"h = {hc:.2f}", xc + B / 2 * k + 0.15, base + hc * k / 2, h=H_ETIQUETA,
+             alin=TextEntityAlignment.MIDDLE_LEFT)
+    pl.texto(f"Sobrecimiento h = {hs:.2f}", xc + t / 2 * k + 0.15, ys + hs * k * 0.75, h=H_ETIQUETA,
+             alin=TextEntityAlignment.MIDDLE_LEFT)
+    pl.texto(f"Df = {df:.2f}", xc - B / 2 * k - 0.15, base + hc * k / 2, h=H_ETIQUETA,
+             alin=TextEntityAlignment.MIDDLE_RIGHT)
+    pl.texto("Cimiento: concreto ciclópeo 1:10 + 30 % P.G.", x, base - 0.7, h=H_ETIQUETA)
+    pl.texto("Sobrecimiento: concreto 1:8 + 25 % P.M.", x, base - 1.0, h=H_ETIQUETA)
+    pl.texto("En linderos el cimiento es excéntrico (cara exterior a ras del muro).", x, base - 1.3, h=H_ETIQUETA)

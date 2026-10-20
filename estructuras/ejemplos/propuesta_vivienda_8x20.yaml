@@ -20,7 +20,8 @@ sitio:
   zona: 4
   perfil_suelo: S2               # supuesto hasta contar con el EMS
   vs30_m_s: null
-  capacidad_portante_kgf_cm2: null
+  capacidad_portante_kgf_cm2: 2.0   # SUPUESTO: reemplazar con el valor del EMS
+  capacidad_portante_supuesta: true
 
 estructura:
   sistema: albanileria
@@ -28,11 +29,26 @@ estructura:
   dimension_x_m: 8.00
   dimension_y_m: 16.00
 
+cargas:                        # E.020; valores en tonf/m²
+  piso_terminado_tonf_m2: 0.10
+  tabiqueria_tonf_m2: 0.10
+  acabados_azotea_tonf_m2: 0.10
+  sobrecarga_tonf_m2: 0.20
+  sobrecarga_azotea_tonf_m2: 0.10
+
+cimentacion:
+  df_m: 1.00                   # profundidad de cimentación desde el terreno natural
+  h_cimiento_m: 0.80
+  h_sobrecimiento_m: 0.40
+  ancho_minimo_m: 0.40
+  linderos: [A, C, 5]          # medianeras y fondo: cimientos excéntricos
+
 materiales:
   unidad_albanileria: kk_industrial
   fc_kgf_cm2: 210
   fy_kgf_cm2: 4200
 
+# Estimación inicial del peso (el comando `analizar` lo recalcula con el metrado):
 # CM: aligerado 0,28 + piso terminado 0,10 + tabiquería 0,10 + muros 0,31 + vigas y columnas 0,05.
 # Azotea: aligerado 0,28 + acabados 0,10 + medio piso de muros y parapetos 0,20 + otros 0,02.
 niveles:
@@ -47,9 +63,9 @@ geometria:
   columnas:
     - {id: C-2, en: [B, 1], dx_m: 0.25, dy_m: 0.25}
   vigas:
-    - {id: V-101, desde: [1.50, 1], hasta: [B, 1], b_m: 0.25, h_m: 0.30}
+    - {id: V-101, desde: [2.00, 1], hasta: [B, 1], b_m: 0.25, h_m: 0.30}
     - {id: V-102, desde: [B, 1], hasta: [5.50, 1], b_m: 0.25, h_m: 0.30}
-    - {id: V-103, desde: [3.00, 3], hasta: [5.00, 3], b_m: 0.25, h_m: 0.30}
+    - {id: V-103, desde: [3.00, 3], hasta: [B, 3], b_m: 0.25, h_m: 0.30}
     - {id: V-104, desde: [B, 3], hasta: [B, 4], b_m: 0.25, h_m: 0.40}
     - {id: V-105, desde: [B, 1], hasta: [B, 2], b_m: 0.25, h_m: 0.40}
     - {id: V-106, desde: [2.40, 3], hasta: [2.40, 4], b_m: 0.25, h_m: 0.40}
@@ -63,7 +79,9 @@ geometria:
     - {desde: [A, 4], hasta: [B, 5], tipo: aligerado, h_m: 0.17, direccion: x}
     - {desde: [B, 4], hasta: [C, 5], tipo: aligerado, h_m: 0.17, direccion: x}
   huecos:
-    - {desde: [A, 3], hasta: [2.40, 4], nombre: ESCALERA}
+    # Escalera de dos tramos: peso en planta 0,60 (losa inclinada y pasos) + 0,10 acabados.
+    - {desde: [A, 3], hasta: [2.40, 4], nombre: ESCALERA, carga_muerta_tonf_m2: 0.70,
+       carga_viva_tonf_m2: 0.20, apoyos: [MX-2, MX-4]}
 
 # Muros portantes, por paño entre columnas de confinamiento.
 muros:
@@ -76,14 +94,15 @@ muros:
   - {id: MY-6, desde: [C, 2], hasta: [C, 3], espesor_m: 0.13}
   - {id: MY-7, desde: [C, 3], hasta: [C, 4], espesor_m: 0.13}
   - {id: MY-8, desde: [C, 4], hasta: [C, 5], espesor_m: 0.13}
-  - {id: MY-9, desde: [B, 2], hasta: [B, 3], espesor_m: 0.13}
-  - {id: MY-10, desde: [B, 4], hasta: [B, 5], espesor_m: 0.13}
-  # Dirección X: la fachada tiene vanos grandes; se compensa con la placa PL-1 y con el
-  # muro posterior de cabeza (t = 0,23 m), que además da resistencia al corte (E.070 art. 26)
-  - {id: PL-1, desde: [A, 1], hasta: [1.50, 1], espesor_m: 0.15, material: concreto}
-  - {id: MX-1, desde: [5.50, 1], hasta: [C, 1], espesor_m: 0.13}
+  - {id: MY-9, desde: [B, 2], hasta: [B, 3], espesor_m: 0.23}    # cabeza: carga axial (E.070 19.1b)
+  - {id: MY-10, desde: [B, 4], hasta: [B, 5], espesor_m: 0.23}   # cabeza: carga axial (E.070 19.1b)
+  # Dirección X: la fachada tiene vanos grandes; se resuelve con dos placas de concreto
+  # (PL-1, PL-2) que equilibran en planta la rigidez del muro posterior de cabeza.
+  # Los muros cortos de albañilería en fachada no pasaban el control de fisuración (26.2).
+  - {id: PL-1, desde: [A, 1], hasta: [2.00, 1], espesor_m: 0.15, material: concreto}
+  - {id: PL-2, desde: [5.50, 1], hasta: [C, 1], espesor_m: 0.15, material: concreto}
   - {id: MX-2, desde: [A, 3], hasta: [3.00, 3], espesor_m: 0.13}
-  - {id: MX-3, desde: [5.00, 3], hasta: [C, 3], espesor_m: 0.13}
+  - {id: MX-3, desde: [B, 3], hasta: [C, 3], espesor_m: 0.13}
   - {id: MX-4, desde: [A, 4], hasta: [2.40, 4], espesor_m: 0.13}
   - {id: MX-5, desde: [A, 5], hasta: [B, 5], espesor_m: 0.23}   # muro de cabeza
   - {id: MX-6, desde: [B, 5], hasta: [C, 5], espesor_m: 0.23}   # muro de cabeza

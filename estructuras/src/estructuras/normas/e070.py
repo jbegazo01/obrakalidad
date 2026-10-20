@@ -27,12 +27,12 @@ UNIDADES = {
     )
 }
 
-LONGITUD_MINIMA_MURO = 1.20  # m, solo muros con L > 1,2 m aportan a la densidad (art. 19.2 b)
-SEPARACION_MAXIMA_COLUMNAS = 5.0  # m, y no más de 2 veces la altura del muro (art. 20)
+LONGITUD_MINIMA_MURO = 1.20  # m, muros que contribuyen a la resistencia sísmica (art. 17c)
+SEPARACION_MAXIMA_COLUMNAS = 5.0  # m, y no más de 2 veces la altura del muro (art. 20.1b)
 
 
 def separacion_maxima_columnas(h: float) -> float:
-    """Art. 20: distancia máxima entre columnas de confinamiento, min(2h, 5 m)."""
+    """Art. 20.1b: distancia máxima entre columnas de confinamiento, min(2h, 5 m)."""
     return min(2.0 * h, SEPARACION_MAXIMA_COLUMNAS)
 
 
@@ -54,7 +54,8 @@ def modulo_corte(Em: float) -> float:
 
 
 def espesor_minimo(h: float, zona: int) -> float:
-    """Art. 19.1 a): t ≥ h/20 en zonas sísmicas 2 a 4, t ≥ h/25 en zona 1."""
+    """Art. 19.1a: t ≥ h/20 en zonas sísmicas 2 y 3 de la E.030 de 2003 (zonas 2 a 4 actuales),
+    t ≥ h/25 en zona 1. h es la altura libre entre arriostres horizontales."""
     return h / 20.0 if zona >= 2 else h / 25.0
 
 
@@ -104,7 +105,8 @@ def resistencia_corte(vm: float, alfa: float, t: float, L: float, Pg: float) -> 
 
 
 def acero_minimo_columna(fc: float, Ac: float, fy: float) -> float:
-    """Columnas de confinamiento, refuerzo vertical mínimo: As ≥ 0,1 f'c·Ac / fy (cm², Ac en cm²)."""
+    """Art. 27.3 a.2: refuerzo vertical mínimo de columnas de confinamiento, As ≥ 0,1 f'c·Ac / fy
+    (cm², Ac en cm²), con un mínimo de 4 Ø 8 mm."""
     return 0.1 * fc * Ac / fy
 
 

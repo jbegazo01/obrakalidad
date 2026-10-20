@@ -49,6 +49,14 @@ class Hueco:
     inicio: Punto
     fin: Punto
     nombre: str = ""
+    # Escaleras: carga en planta (tonf/m²) que se reparte por igual entre los muros de apoyo.
+    carga_muerta: float = 0.0
+    carga_viva: float = 0.0
+    apoyos: list[str] = field(default_factory=list)  # ids de paños de muro
+
+    @property
+    def area(self) -> float:
+        return abs(self.fin[0] - self.inicio[0]) * abs(self.fin[1] - self.inicio[1])
 
 
 @dataclass
@@ -120,7 +128,16 @@ def leer_geometria(datos: dict) -> Geometria:
             )
         )
     for h in datos.get("huecos") or []:
-        geo.huecos.append(Hueco(p(h["desde"]), p(h["hasta"]), h.get("nombre", "")))
+        geo.huecos.append(
+            Hueco(
+                p(h["desde"]),
+                p(h["hasta"]),
+                h.get("nombre", ""),
+                float(h.get("carga_muerta_tonf_m2", 0.0)),
+                float(h.get("carga_viva_tonf_m2", 0.0)),
+                [str(a) for a in h.get("apoyos") or []],
+            )
+        )
     return geo
 
 
