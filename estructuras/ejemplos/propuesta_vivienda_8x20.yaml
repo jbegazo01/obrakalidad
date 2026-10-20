@@ -1,0 +1,89 @@
+# PROPUESTA DE ESTRUCTURACIÓN – Vivienda multifamiliar de 3 pisos, albañilería confinada.
+#
+# Supuestos de arquitectura (a confirmar con el arquitecto):
+#   Lote de 8,00 × 20,00 m entre medianeras, con retiro frontal de 3,00 m y área techada de
+#   8,00 × 16,00 m = 128 m² por piso. Un departamento por piso (sala-comedor al frente,
+#   cocina, 3 dormitorios, 2 baños) y escalera común junto a la medianera izquierda.
+#   Altura de entrepiso 2,60 m (2,43 m libres con losa de 0,17 m).
+# Coordenadas: X a lo ancho del lote (fachada en Y = 0), Y hacia el fondo. Los ejes van por el
+# centro de los muros.
+
+proyecto:
+  nombre: "Vivienda multifamiliar 3 pisos – propuesta"
+  propietario: ""
+  ubicacion: {departamento: Lima, provincia: Lima, distrito: "", direccion: ""}
+  uso: vivienda
+  categoria: C
+  norma_e030: "2026"
+
+sitio:
+  zona: 4
+  perfil_suelo: S2               # supuesto hasta contar con el EMS
+  vs30_m_s: null
+  capacidad_portante_kgf_cm2: null
+
+estructura:
+  sistema: albanileria
+  irregularidades: []
+  dimension_x_m: 8.00
+  dimension_y_m: 16.00
+
+materiales:
+  unidad_albanileria: kk_industrial
+  fc_kgf_cm2: 210
+  fy_kgf_cm2: 4200
+
+# CM: aligerado 0,28 + piso terminado 0,10 + tabiquería 0,10 + muros 0,31 + vigas y columnas 0,05.
+# Azotea: aligerado 0,28 + acabados 0,10 + medio piso de muros y parapetos 0,20 + otros 0,02.
+niveles:
+  - {nombre: Piso 1, altura_entrepiso_m: 2.60, area_m2: 128.0, carga_muerta_tonf_m2: 0.84, carga_viva_tonf_m2: 0.20}
+  - {nombre: Piso 2, altura_entrepiso_m: 2.60, area_m2: 128.0, carga_muerta_tonf_m2: 0.84, carga_viva_tonf_m2: 0.20}
+  - {nombre: Azotea, altura_entrepiso_m: 2.60, area_m2: 128.0, carga_muerta_tonf_m2: 0.60, carga_viva_tonf_m2: 0.10, azotea: true}
+
+geometria:
+  ejes:
+    x: {A: 0.00, B: 4.00, C: 8.00}
+    y: {1: 0.00, 2: 4.00, 3: 8.00, 4: 12.00, 5: 16.00}
+  columnas:
+    - {id: C-2, en: [B, 1], dx_m: 0.25, dy_m: 0.25}
+  vigas:
+    - {id: V-101, desde: [1.50, 1], hasta: [B, 1], b_m: 0.25, h_m: 0.30}
+    - {id: V-102, desde: [B, 1], hasta: [5.50, 1], b_m: 0.25, h_m: 0.30}
+    - {id: V-103, desde: [3.00, 3], hasta: [5.00, 3], b_m: 0.25, h_m: 0.30}
+    - {id: V-104, desde: [B, 3], hasta: [B, 4], b_m: 0.25, h_m: 0.40}
+    - {id: V-105, desde: [B, 1], hasta: [B, 2], b_m: 0.25, h_m: 0.40}
+    - {id: V-106, desde: [2.40, 3], hasta: [2.40, 4], b_m: 0.25, h_m: 0.40}
+  losas:
+    - {desde: [A, 1], hasta: [B, 2], tipo: aligerado, h_m: 0.17, direccion: x}
+    - {desde: [B, 1], hasta: [C, 2], tipo: aligerado, h_m: 0.17, direccion: x}
+    - {desde: [A, 2], hasta: [B, 3], tipo: aligerado, h_m: 0.17, direccion: x}
+    - {desde: [B, 2], hasta: [C, 3], tipo: aligerado, h_m: 0.17, direccion: x}
+    - {desde: [2.40, 3], hasta: [B, 4], tipo: aligerado, h_m: 0.17, direccion: x}
+    - {desde: [B, 3], hasta: [C, 4], tipo: aligerado, h_m: 0.17, direccion: x}
+    - {desde: [A, 4], hasta: [B, 5], tipo: aligerado, h_m: 0.17, direccion: x}
+    - {desde: [B, 4], hasta: [C, 5], tipo: aligerado, h_m: 0.17, direccion: x}
+  huecos:
+    - {desde: [A, 3], hasta: [2.40, 4], nombre: ESCALERA}
+
+# Muros portantes, por paño entre columnas de confinamiento.
+muros:
+  # Dirección Y: medianeras (ejes A y C) y muro central (eje B)
+  - {id: MY-1, desde: [A, 1], hasta: [A, 2], espesor_m: 0.13}
+  - {id: MY-2, desde: [A, 2], hasta: [A, 3], espesor_m: 0.13}
+  - {id: MY-3, desde: [A, 3], hasta: [A, 4], espesor_m: 0.13}
+  - {id: MY-4, desde: [A, 4], hasta: [A, 5], espesor_m: 0.13}
+  - {id: MY-5, desde: [C, 1], hasta: [C, 2], espesor_m: 0.13}
+  - {id: MY-6, desde: [C, 2], hasta: [C, 3], espesor_m: 0.13}
+  - {id: MY-7, desde: [C, 3], hasta: [C, 4], espesor_m: 0.13}
+  - {id: MY-8, desde: [C, 4], hasta: [C, 5], espesor_m: 0.13}
+  - {id: MY-9, desde: [B, 2], hasta: [B, 3], espesor_m: 0.13}
+  - {id: MY-10, desde: [B, 4], hasta: [B, 5], espesor_m: 0.13}
+  # Dirección X: la fachada tiene vanos grandes; se compensa con la placa PL-1 y con el
+  # muro posterior de cabeza (t = 0,23 m), que además da resistencia al corte (E.070 art. 26)
+  - {id: PL-1, desde: [A, 1], hasta: [1.50, 1], espesor_m: 0.15, material: concreto}
+  - {id: MX-1, desde: [5.50, 1], hasta: [C, 1], espesor_m: 0.13}
+  - {id: MX-2, desde: [A, 3], hasta: [3.00, 3], espesor_m: 0.13}
+  - {id: MX-3, desde: [5.00, 3], hasta: [C, 3], espesor_m: 0.13}
+  - {id: MX-4, desde: [A, 4], hasta: [2.40, 4], espesor_m: 0.13}
+  - {id: MX-5, desde: [A, 5], hasta: [B, 5], espesor_m: 0.23}   # muro de cabeza
+  - {id: MX-6, desde: [B, 5], hasta: [C, 5], espesor_m: 0.23}   # muro de cabeza

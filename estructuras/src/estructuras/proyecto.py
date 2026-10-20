@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 
+from .geometria import Geometria, direccion_segmento, leer_geometria, resolver_punto
 from .normas import e030, e070
 from .normas.e070 import Muro
 
@@ -13,10 +14,11 @@ from .normas.e070 import Muro
 class Nivel:
     nombre: str
     altura_entrepiso: float  # m
-    area: float  # m², área techada del nivel
-    carga_muerta: float  # tonf/m², incluye losa, vigas, muros y acabados
-    carga_viva: float  # tonf/m²
+    area: float | None  # m², área techada del nivel
+    carga_muerta: float | None  # tonf/m², incluye losa, vigas, muros y acabados
+    carga_viva: float | None  # tonf/m²
     azotea: bool = False
+    peso: float | None = None  # tonf, peso sísmico ya calculado (p. ej. de ETABS)
 
 
 @dataclass
@@ -36,6 +38,8 @@ class Ficha:
     sistema_y: str
     ct_x: float | None
     ct_y: float | None
+    periodo_x: float | None  # s, periodo de un análisis (art. 36.2); reemplaza hn/CT
+    periodo_y: float | None
     aislamiento: bool
     cobertura_liviana: bool
     irregularidades: list[str]
@@ -46,6 +50,7 @@ class Ficha:
     fy: float  # kgf/cm²
     niveles: list[Nivel]
     muros: list[Muro] = field(default_factory=list)
+    geometria: Geometria | None = None
 
     @property
     def n_pisos(self) -> int:
@@ -70,6 +75,30 @@ def _requerido(datos: dict, clave: str, seccion: str):
     return datos[clave]
 
 
+def _leer_muro(m: dict, geometria: Geometria | None) -> Muro:
+    id_ = str(_requerido(m, "id", "muros"))
+    espesor = float(_requerido(m, "espesor_m", f"muros[{id_}]"))
+    material = m.get("material", "albanileria")
+    if "desde" in m or "hasta" in m:
+        if geometria is None:
+            raise FichaInvalida(f"Muro {id_}: 'desde'/'hasta' requieren la sección 'geometria.ejes'.")
+        try:
+            inicio = resolver_punto(m.get("desde"), geometria.ejes_x, geometria.ejes_y)
+            fin = resolver_punto(m.get("hasta"), geometria.ejes_x, geometria.ejes_y)
+            direccion = direccion_segmento(inicio, fin)
+        except ValueError as e:
+            raise FichaInvalida(f"Muro {id_}: {e}") from e
+        longitud = abs(fin[0] - inicio[0]) + abs(fin[1] - inicio[1])
+        return Muro(id_, direccion, longitud, espesor, material, inicio, fin)
+    return Muro(
+        id=id_,
+        direccion=str(_requerido(m, "direccion", f"muros[{id_}]")).lower(),
+        longitud=float(_requerido(m, "longitud_m", f"muros[{id_}]")),
+        espesor=espesor,
+        material=material,
+    )
+
+
 def leer_ficha(ruta: str | Path) -> Ficha:
     with open(ruta, encoding="utf-8") as f:
         datos = yaml.safe_load(f) or {}
@@ -85,29 +114,35 @@ def ficha_desde_dict(datos: dict) -> Ficha:
     niveles = []
     for i, n in enumerate(datos.get("niveles") or [], start=1):
         seccion = f"niveles[{i}]"
+        peso = n.get("peso_sismico_tonf")
+        if peso is None:
+            area = float(_requerido(n, "area_m2", seccion))
+            cm = float(_requerido(n, "carga_muerta_tonf_m2", seccion))
+            cv = float(_requerido(n, "carga_viva_tonf_m2", seccion))
+        else:
+            area, cm, cv = n.get("area_m2"), None, None
         niveles.append(
             Nivel(
                 nombre=n.get("nombre", f"Piso {i}"),
                 altura_entrepiso=float(_requerido(n, "altura_entrepiso_m", seccion)),
-                area=float(_requerido(n, "area_m2", seccion)),
-                carga_muerta=float(_requerido(n, "carga_muerta_tonf_m2", seccion)),
-                carga_viva=float(_requerido(n, "carga_viva_tonf_m2", seccion)),
+                area=area,
+                carga_muerta=cm,
+                carga_viva=cv,
                 azotea=bool(n.get("azotea", False)),
+                peso=float(peso) if peso is not None else None,
             )
         )
     if not niveles:
         raise FichaInvalida("La ficha debe tener al menos un nivel en 'niveles'.")
 
-    muros = [
-        Muro(
-            id=str(_requerido(m, "id", "muros")),
-            direccion=str(_requerido(m, "direccion", "muros")).lower(),
-            longitud=float(_requerido(m, "longitud_m", "muros")),
-            espesor=float(_requerido(m, "espesor_m", "muros")),
-            material=m.get("material", "albanileria"),
-        )
-        for m in datos.get("muros") or []
-    ]
+    geometria = None
+    if datos.get("geometria"):
+        try:
+            geometria = leer_geometria(datos["geometria"])
+        except (ValueError, KeyError) as e:
+            raise FichaInvalida(f"geometria: {e}") from e
+
+    muros = [_leer_muro(m, geometria) for m in datos.get("muros") or []]
 
     sistema = estructura.get("sistema")
     return Ficha(
@@ -126,6 +161,8 @@ def ficha_desde_dict(datos: dict) -> Ficha:
         sistema_y=estructura.get("sistema_y", sistema),
         ct_x=estructura.get("ct_x"),
         ct_y=estructura.get("ct_y"),
+        periodo_x=estructura.get("periodo_x_s"),
+        periodo_y=estructura.get("periodo_y_s"),
         aislamiento=bool(estructura.get("aislamiento", False)),
         cobertura_liviana=bool(estructura.get("cobertura_liviana", False)),
         irregularidades=list(estructura.get("irregularidades") or []),
@@ -136,6 +173,7 @@ def ficha_desde_dict(datos: dict) -> Ficha:
         fy=float(materiales.get("fy_kgf_cm2", 4200)),
         niveles=niveles,
         muros=muros,
+        geometria=geometria,
     )
 
 
@@ -201,6 +239,12 @@ def validar(ficha: Ficha) -> tuple[list[str], list[str]]:
             errores.append(f"Muro {m.id}: la dirección debe ser 'x' o 'y'.")
         if m.material not in ("albanileria", "concreto"):
             errores.append(f"Muro {m.id}: el material debe ser 'albanileria' o 'concreto'.")
+        separacion = e070.separacion_maxima_columnas(ficha.niveles[0].altura_entrepiso)
+        if m.material == "albanileria" and m.longitud > separacion + 1e-9:
+            advertencias.append(
+                f"Muro {m.id} (L = {m.longitud:g} m): requiere columnas de confinamiento a no más "
+                f"de {separacion:g} m (E.070 art. 20); divídalo en paños."
+            )
 
     if ficha.dimension_x is None or ficha.dimension_y is None:
         advertencias.append(

@@ -7,7 +7,9 @@ from importlib import resources
 from pathlib import Path
 
 from . import analisis
+from .geometria import luz_libre_losa
 from .normas import e030, e070, vigencia
+from .predimensionamiento import espesor_aligerado, seccion_viga
 from .proyecto import FichaInvalida, leer_ficha, validar
 
 
@@ -104,7 +106,11 @@ def cmd_sismo(args) -> int:
         c = d.cortante
         print(f"Dirección {d.eje}: {d.sistema.nombre}")
         print(f"  R0 = {d.sistema.R0:g}, Ia = {_f(d.Ia, 2)}, Ip = {_f(d.Ip, 2)} → R = {_f(d.R, 2)} (art. 26)")
-        print(f"  T = hn/CT = {_f(ficha.altura_total, 2)}/{d.CT:g} = {_f(d.T)} s (art. 36)")
+        periodo = ficha.periodo_x if d.eje == "X" else ficha.periodo_y
+        if periodo is not None:
+            print(f"  T = {_f(d.T)} s, del análisis de la estructura (art. 36.2)")
+        else:
+            print(f"  T = hn/CT = {_f(ficha.altura_total, 2)}/{d.CT:g} = {_f(d.T)} s (art. 36.1)")
         print(f"  C = {_f(d.C, 3)} (art. 18.3 y 34.1)   C/R = {_f(c.C_sobre_R)}"
               + ("  (se aplicó el mínimo 0,11)" if c.minimo_aplicado else ""))
         print(f"  ZUCS/R = {_f(c.coeficiente, 4)}")
@@ -151,6 +157,54 @@ def cmd_densidad(args) -> int:
     return 0 if all(d.cumple for d in r.direcciones) and not r.muros_delgados else 2
 
 
+def cmd_predim(args) -> int:
+    ficha, errores = _cargar(args.ficha)
+    if ficha is None or errores:
+        return 1
+    if ficha.geometria is None:
+        print("Error: la ficha no tiene 'geometria'.", file=sys.stderr)
+        return 1
+    geo = ficha.geometria
+    ok = True
+    print("PREDIMENSIONAMIENTO (criterios prácticos)\n")
+    print("Losas aligeradas: h ≥ L/25")
+    for i, losa in enumerate(geo.losas, start=1):
+        luz = luz_libre_losa(losa)
+        req = espesor_aligerado(luz)
+        estado = "ok" if losa.h >= req - 1e-9 else "INSUFICIENTE"
+        ok &= estado == "ok"
+        print(f"  Paño {i}: L = {_f(luz, 2)} m → h ≥ {_f(req, 2)} m; adoptado {_f(losa.h, 2)} m  {estado}")
+    print("\nVigas: h entre L/12 y L/10, b ≥ 0,25 m")
+    for v in geo.vigas:
+        sv = seccion_viga(v.luz)
+        estado = "ok" if v.h >= sv.h_min - 1e-9 and v.b >= sv.b - 1e-9 else "INSUFICIENTE"
+        ok &= estado == "ok"
+        print(f"  {v.id}: L = {_f(v.luz, 2)} m → h = {_f(sv.h_min, 2)}–{_f(sv.h_max, 2)} m; "
+              f"adoptado {_f(v.b, 2)}x{_f(v.h, 2)}  {estado}")
+    return 0 if ok else 2
+
+
+def cmd_plano(args) -> int:
+    ficha, errores = _cargar(args.ficha)
+    if ficha is None or errores:
+        return 1
+    from .planos import plano_estructuracion
+
+    try:
+        plano = plano_estructuracion(ficha, analisis.analisis_estatico(ficha), lamina=args.lamina)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    salida = Path(args.salida)
+    plano.guardar(salida)
+    print(f"Plano DXF: {salida}")
+    if args.png:
+        png = salida.with_suffix(".png")
+        plano.exportar_png(png)
+        print(f"Vista previa: {png}")
+    return 0
+
+
 def construir_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="estructuras", description="Asistente de diseño estructural (RNE Perú).")
     sub = p.add_subparsers(dest="comando", required=True)
@@ -167,10 +221,18 @@ def construir_parser() -> argparse.ArgumentParser:
         ("validar", "Validar una ficha de proyecto", cmd_validar),
         ("sismo", "Análisis sísmico estático (E.030)", cmd_sismo),
         ("densidad", "Densidad mínima de muros (E.070)", cmd_densidad),
+        ("predim", "Predimensionamiento de losas y vigas", cmd_predim),
     ):
         sp = sub.add_parser(nombre, help=ayuda)
         sp.add_argument("ficha")
         sp.set_defaults(func=func)
+
+    plano = sub.add_parser("plano", help="Plano de estructuración en DXF")
+    plano.add_argument("ficha")
+    plano.add_argument("-o", "--salida", default="salida/E-01.dxf")
+    plano.add_argument("--lamina", default="E-01")
+    plano.add_argument("--png", action="store_true", help="Generar también una vista previa PNG")
+    plano.set_defaults(func=cmd_plano)
     return p
 
 

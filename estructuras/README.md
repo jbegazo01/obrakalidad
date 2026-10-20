@@ -25,9 +25,23 @@ estructuras nuevo mi_proyecto.yaml     # ficha en blanco
 estructuras validar mi_proyecto.yaml
 estructuras sismo mi_proyecto.yaml     # análisis sísmico estático E.030
 estructuras densidad mi_proyecto.yaml  # densidad mínima de muros E.070
+estructuras predim mi_proyecto.yaml    # predimensionamiento de losas y vigas
+estructuras plano mi_proyecto.yaml -o salida/E-01.dxf --png   # plano de estructuración
 ```
 
-Ejemplo completo: `estructuras sismo ejemplos/vivienda_albanileria.yaml`.
+Ejemplos:
+
+| Archivo | Contenido |
+|---|---|
+| `ejemplos/propuesta_vivienda_8x20.yaml` | Propuesta completa con geometría: vivienda de 3 pisos en albañilería confinada (lote 8 × 20 m) |
+| `ejemplos/vivienda_albanileria.yaml` | Vivienda de 3 pisos, solo muros (sin geometría) |
+| `ejemplos/kora_e030_2026.yaml` | Edificio de 11 pisos de muros de concreto (memoria de 2023) recalculado con la E.030-2026 |
+
+En `geometria` se definen los ejes; los muros, vigas, losas y huecos se ubican con puntos
+`[eje_x, eje_y]` (p. ej. `[B, 3]`) o con coordenadas (`[2.40, 8.00]`). Las columnas de
+confinamiento se generan solas en los extremos de cada muro de albañilería.
+
+El plano DXF usa capas `EST-*`, metros como unidad de dibujo y lámina A1 a escala 1/50.
 
 Unidades: tonf y m; resistencias de materiales en kgf/cm².
 
@@ -58,7 +72,7 @@ Ese texto anterior aún no está implementado.
 | 0 | Base normativa, ficha del proyecto, CLI | Hecho |
 | 1 | Lectura del PDF de arquitectura → ficha | Pendiente |
 | 2 | Albañilería confinada: metrado, análisis sísmico, diseño de muros, cimentación | Pendiente |
-| 3 | Planos DXF y memoria de cálculo (Word/PDF) | Pendiente |
+| 3 | Planos DXF y memoria de cálculo (Word/PDF) | Iniciada: planta de estructuración, predimensionamiento |
 | 4 | Concreto armado aporticado y dual | Pendiente |
 | 5 | Estructuras metálicas | Pendiente |
 | 6 | Interfaz web | Pendiente |

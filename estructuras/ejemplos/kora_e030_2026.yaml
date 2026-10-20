@@ -1,0 +1,39 @@
+# Edificio "Residencial Kora" (San Miguel, Lima), recalculado con la E.030-2026.
+# Datos tomados de su memoria de cálculo de 2023 (E.030-2016/2018, ETABS 2019):
+# pesos por nivel y periodos del análisis (Tx = 0,892 s, Ty = 0,744 s, ×0,85 por art. 36.3).
+# La memoria usó S = 1,05 (E.030-2018); con la E.030-2026 y sin Vs30 corresponde S = 1,10.
+
+proyecto:
+  nombre: "Residencial Kora – verificación con E.030-2026"
+  ubicacion: {departamento: Lima, provincia: Lima, distrito: San Miguel}
+  uso: vivienda
+  categoria: C
+  norma_e030: "2026"
+
+sitio:
+  zona: 4
+  perfil_suelo: S2
+  vs30_m_s: null
+  capacidad_portante_kgf_cm2: 3.80
+
+estructura:
+  sistema: ca_muros
+  irregularidades: [torsional]
+  periodo_x_s: 0.758
+  periodo_y_s: 0.632
+
+materiales:
+  fc_kgf_cm2: 210
+
+niveles:
+  - {nombre: Piso 1, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 2, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 3, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 4, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 5, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 6, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 7, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 8, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 9, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 10, altura_entrepiso_m: 2.55, peso_sismico_tonf: 181.55}
+  - {nombre: Piso 11, altura_entrepiso_m: 2.55, peso_sismico_tonf: 150.14, azotea: true}

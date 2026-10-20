@@ -13,7 +13,7 @@ class Direccion:
     Ia: float
     Ip: float
     R: float
-    CT: float
+    CT: float | None
     T: float
     C: float
     cortante: e030.CortanteBasal
@@ -40,9 +40,11 @@ class ResultadoSismico:
 
 
 def pesos_sismicos(ficha: Ficha) -> list[float]:
-    """Peso por nivel según el art. 31: CM + fracción de la CV."""
+    """Peso por nivel según el art. 31: CM + fracción de la CV, o el peso dado en la ficha."""
     return [
-        n.area * (n.carga_muerta + e030.fraccion_carga_viva(ficha.categoria, n.azotea) * n.carga_viva)
+        n.peso
+        if n.peso is not None
+        else n.area * (n.carga_muerta + e030.fraccion_carga_viva(ficha.categoria, n.azotea) * n.carga_viva)
         for n in ficha.niveles
     ]
 
@@ -65,16 +67,16 @@ def analisis_estatico(ficha: Ficha) -> ResultadoSismico:
     hn = ficha.altura_total
 
     direcciones = []
-    for eje, clave, ct, dim_perp in (
-        ("X", ficha.sistema_x, ficha.ct_x, ficha.dimension_y),
-        ("Y", ficha.sistema_y, ficha.ct_y, ficha.dimension_x),
+    for eje, clave, ct, periodo, dim_perp in (
+        ("X", ficha.sistema_x, ficha.ct_x, ficha.periodo_x, ficha.dimension_y),
+        ("Y", ficha.sistema_y, ficha.ct_y, ficha.periodo_y, ficha.dimension_x),
     ):
         s = e030.sistema(clave)
         CT = ct or s.CT
-        if CT is None:
+        if CT is None and periodo is None:
             raise ValueError(f"Dirección {eje}: indique 'estructura.ct_{eje.lower()}' para {s.nombre}.")
         R = e030.coeficiente_R(s.R0, Ia, Ip)
-        T = e030.periodo_fundamental(hn, CT)
+        T = periodo if periodo is not None else e030.periodo_fundamental(hn, CT)
         C = e030.factor_C_estatico(T, sitio.TP, sitio.TL)
         cortante = e030.cortante_basal(sitio.Z, U, C, sitio.S, R, P)
         direcciones.append(
@@ -142,6 +144,8 @@ def verificar_densidad(ficha: Ficha) -> ResultadoDensidad:
     unidad = e070.unidad(ficha.unidad_albanileria)
     Ec_sobre_Em = e060.modulo_elasticidad(ficha.fc) / e070.modulo_elasticidad(unidad.fm)
     area = ficha.niveles[0].area
+    if area is None:
+        raise ValueError("Falta 'area_m2' del primer nivel.")
     requerida = e070.densidad_requerida(sitio.Z, U, sitio.S, ficha.n_pisos)
     # La altura libre del muro se aproxima con la altura de entrepiso del primer piso.
     t_min = e070.espesor_minimo(ficha.niveles[0].altura_entrepiso, ficha.zona)

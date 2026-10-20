@@ -28,6 +28,12 @@ UNIDADES = {
 }
 
 LONGITUD_MINIMA_MURO = 1.20  # m, solo muros con L > 1,2 m aportan a la densidad (art. 19.2 b)
+SEPARACION_MAXIMA_COLUMNAS = 5.0  # m, y no más de 2 veces la altura del muro (art. 20)
+
+
+def separacion_maxima_columnas(h: float) -> float:
+    """Art. 20: distancia máxima entre columnas de confinamiento, min(2h, 5 m)."""
+    return min(2.0 * h, SEPARACION_MAXIMA_COLUMNAS)
 
 
 def unidad(clave: str) -> UnidadAlbanileria:
@@ -64,6 +70,8 @@ class Muro:
     longitud: float  # m, incluye columnas de confinamiento
     espesor: float  # m, espesor efectivo
     material: str = "albanileria"  # o "concreto"
+    inicio: tuple[float, float] | None = None  # m, coordenadas en planta (opcionales)
+    fin: tuple[float, float] | None = None
 
 
 def densidad_muros(muros: list[Muro], direccion: str, area_planta: float, Ec_sobre_Em: float) -> float:
@@ -93,6 +101,11 @@ def factor_esbeltez(Ve: float, Me: float, L: float) -> float:
 def resistencia_corte(vm: float, alfa: float, t: float, L: float, Pg: float) -> float:
     """Art. 26.3, unidades de arcilla: Vm = 0,5 v'm·α·t·L + 0,23 Pg (tonf)."""
     return 0.5 * kgf_cm2_a_tonf_m2(vm) * alfa * t * L + 0.23 * Pg
+
+
+def acero_minimo_columna(fc: float, Ac: float, fy: float) -> float:
+    """Columnas de confinamiento, refuerzo vertical mínimo: As ≥ 0,1 f'c·Ac / fy (cm², Ac en cm²)."""
+    return 0.1 * fc * Ac / fy
 
 
 def control_fisuracion(Ve: float, Vm: float) -> bool:
