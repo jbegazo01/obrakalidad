@@ -1,0 +1,64 @@
+# Ejemplo: vivienda de 3 pisos en albañilería confinada, lote de 8 × 15 m en Lima.
+# Datos ilustrativos, no corresponden a un proyecto real.
+
+proyecto:
+  nombre: "Vivienda multifamiliar – ejemplo"
+  propietario: "Ejemplo"
+  ubicacion:
+    departamento: Lima
+    provincia: Lima
+    distrito: San Juan de Lurigancho
+    direccion: ""
+  uso: vivienda
+  categoria: C
+  norma_e030: "2026"
+
+sitio:
+  zona: 4
+  perfil_suelo: S2
+  vs30_m_s: null
+  ts_s: null
+  capacidad_portante_kgf_cm2: 1.50
+
+estructura:
+  sistema: albanileria
+  irregularidades: []
+  dimension_x_m: 8.00
+  dimension_y_m: 15.00
+  aislamiento: false
+
+materiales:
+  unidad_albanileria: kk_industrial
+  fc_kgf_cm2: 210
+  fy_kgf_cm2: 4200
+
+niveles:
+  - nombre: Piso 1
+    altura_entrepiso_m: 2.60
+    area_m2: 120.0
+    carga_muerta_tonf_m2: 0.75
+    carga_viva_tonf_m2: 0.20
+  - nombre: Piso 2
+    altura_entrepiso_m: 2.60
+    area_m2: 120.0
+    carga_muerta_tonf_m2: 0.75
+    carga_viva_tonf_m2: 0.20
+  - nombre: Azotea
+    altura_entrepiso_m: 2.60
+    area_m2: 120.0
+    carga_muerta_tonf_m2: 0.55
+    carga_viva_tonf_m2: 0.10
+    azotea: true
+
+muros:
+  - {id: X1, direccion: x, longitud_m: 3.00, espesor_m: 0.13}
+  - {id: X2, direccion: x, longitud_m: 3.50, espesor_m: 0.13}
+  - {id: X3, direccion: x, longitud_m: 4.00, espesor_m: 0.13}
+  - {id: X4, direccion: x, longitud_m: 3.00, espesor_m: 0.13}
+  - {id: X5, direccion: x, longitud_m: 7.70, espesor_m: 0.13}
+  - {id: X6, direccion: x, longitud_m: 1.00, espesor_m: 0.13}
+  - {id: P1, direccion: x, longitud_m: 1.50, espesor_m: 0.15, material: concreto}
+  - {id: Y1, direccion: y, longitud_m: 14.50, espesor_m: 0.13}
+  - {id: Y2, direccion: y, longitud_m: 14.50, espesor_m: 0.13}
+  - {id: Y3, direccion: y, longitud_m: 4.00, espesor_m: 0.13}
+  - {id: Y4, direccion: y, longitud_m: 3.50, espesor_m: 0.13}

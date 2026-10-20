@@ -1,0 +1,52 @@
+# Ficha de proyecto estructural
+# Unidades: tonf, m. Resistencias en kgf/cm².
+
+proyecto:
+  nombre: "Nombre del proyecto"
+  propietario: ""
+  ubicacion:
+    departamento: ""
+    provincia: ""
+    distrito: ""
+    direccion: ""
+  uso: vivienda
+  categoria: C            # A1, A2, B o C (E.030 Tabla 7)
+  norma_e030: "2026"      # texto modificado por R.M. 183-2026-VIVIENDA
+
+sitio:
+  zona: 4                 # E.030 Anexo II, según el distrito
+  perfil_suelo: S2        # S0 a S4, del EMS (E.030 Tabla 3)
+  vs30_m_s: null          # si el EMS la reporta, se interpolan S, TP y TL
+  ts_s: null              # periodo H/V, obligatorio para categorías A y B en zona 4
+  capacidad_portante_kgf_cm2: null
+
+estructura:
+  sistema: albanileria    # ver `estructuras sistemas`; o sistema_x / sistema_y por separado
+  irregularidades: []     # ver `estructuras irregularidades`
+  dimension_x_m: null     # dimensiones totales en planta
+  dimension_y_m: null
+  aislamiento: false
+
+materiales:
+  unidad_albanileria: kk_industrial
+  fc_kgf_cm2: 210
+  fy_kgf_cm2: 4200
+
+# De abajo hacia arriba. carga_muerta incluye losa, vigas, muros y acabados.
+niveles:
+  - nombre: Piso 1
+    altura_entrepiso_m: 2.60
+    area_m2: 100.0
+    carga_muerta_tonf_m2: 0.75
+    carga_viva_tonf_m2: 0.20
+  - nombre: Azotea
+    altura_entrepiso_m: 2.60
+    area_m2: 100.0
+    carga_muerta_tonf_m2: 0.55
+    carga_viva_tonf_m2: 0.10
+    azotea: true
+
+# Muros del primer piso para la densidad (E.070). Longitud incluye columnas de confinamiento.
+muros: []
+#  - {id: X1, direccion: x, longitud_m: 3.00, espesor_m: 0.13}
+#  - {id: P1, direccion: y, longitud_m: 1.50, espesor_m: 0.15, material: concreto}
