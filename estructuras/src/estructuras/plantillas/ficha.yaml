@@ -14,7 +14,7 @@ proyecto:
   norma_e030: "2026"      # texto modificado por R.M. 183-2026-VIVIENDA
 
 sitio:
-  zona: null              # se obtiene del distrito (E.030 Anexo II); o indíquela
+  zona: 4                 # o null para tomarla del distrito (E.030 Anexo II)
   perfil_suelo: S2        # S0 a S4, del EMS (E.030 Tabla 3)
   vs30_m_s: null          # si el EMS la reporta, se interpolan S, TP y TL
   ts_s: null              # periodo H/V, obligatorio para categorías A y B en zona 4
