@@ -94,6 +94,8 @@ class Metrado:
     pesos_sismicos: list[float]
     centros_masa: list[tuple[float, float]]
     advertencias: list[str] = field(default_factory=list)
+    # Cargas de cada viga por nivel: (carga repartida total con peso propio, [(s, carga puntual)]).
+    vigas: dict[str, list[tuple[Carga, list[tuple[float, Carga]]]]] = field(default_factory=dict)
 
     def total_pano(self, pano: str, nivel: int) -> Carga:
         """Carga en el nivel (repartida + puntuales) sin peso propio."""
@@ -310,6 +312,7 @@ def metrar(ficha: Ficha, opciones: OpcionesMetrado | None = None) -> Metrado:
     panos = {m.id: [Carga() for _ in range(n)] for m in muros}
     puntuales: dict[str, list[list[CargaPuntual]]] = {m.id: [[] for _ in range(n)] for m in muros}
     columnas = {c.id: [Carga() for _ in range(n)] for c in geo.columnas}
+    vigas: dict[str, list] = {v.id: [None] * n for v in geo.vigas}
     advertencias: list[str] = []
     pesos: list[float] = []
     centros: list[tuple[float, float]] = []
@@ -331,23 +334,29 @@ def metrar(ficha: Ficha, opciones: OpcionesMetrado | None = None) -> Metrado:
             area = abs(x2 - x1) * abs(y2 - y1)
             masa.append(((w.D + beta * w.L) * area, (x1 + x2) / 2, (y1 + y2) / 2))
 
+        # Escaleras: su carga se reparte por igual entre sus apoyos (muros o vigas).
+        ids_vigas = {v.id for v in geo.vigas}
+        for h in geo.huecos:
+            if not h.apoyos or (h.carga_muerta == 0 and h.carga_viva == 0):
+                continue
+            desconocidos = [a for a in h.apoyos if a not in ids_panos | ids_vigas]
+            if desconocidos:
+                raise ValueError(f"Hueco {h.nombre}: apoyos {', '.join(desconocidos)} no son muros ni vigas de la ficha.")
+            total = Carga(h.carga_muerta * h.area, h.carga_viva * h.area)
+            for a in h.apoyos:
+                destino = acc.panos if a in ids_panos else acc.vigas_rep
+                destino[a] += total.escalar(1 / len(h.apoyos))
+            masa.append(((total.D + beta * total.L), (h.inicio[0] + h.fin[0]) / 2, (h.inicio[1] + h.fin[1]) / 2))
+
         peso_vigas = {}
         for v in geo.vigas:
             peso_vigas[v.id] = v.b * max(v.h - h_losa, 0.0) * G_CONCRETO * v.luz
             xm, ym = (v.inicio[0] + v.fin[0]) / 2, (v.inicio[1] + v.fin[1]) / 2
             masa.append((peso_vigas[v.id], xm, ym))
         acc.resolver_vigas(peso_vigas)
-
-        for h in geo.huecos:
-            if not h.apoyos or (h.carga_muerta == 0 and h.carga_viva == 0):
-                continue
-            desconocidos = [a for a in h.apoyos if a not in ids_panos]
-            if desconocidos:
-                raise ValueError(f"Hueco {h.nombre}: apoyos {', '.join(desconocidos)} no son muros de la ficha.")
-            total = Carga(h.carga_muerta * h.area, h.carga_viva * h.area)
-            for a in h.apoyos:
-                acc.panos[a] += total.escalar(1 / len(h.apoyos))
-            masa.append(((total.D + beta * total.L), (h.inicio[0] + h.fin[0]) / 2, (h.inicio[1] + h.fin[1]) / 2))
+        for v in geo.vigas:
+            # Carga de diseño de la viga: repartida total (con peso propio) y puntuales.
+            vigas[v.id][i] = (acc.vigas_rep[v.id] + Carga(peso_vigas[v.id], 0.0), list(acc.vigas_punt[v.id]))
 
         # Muros: mitad del entrepiso inferior y mitad del superior.
         for m in muros:
@@ -373,4 +382,4 @@ def metrar(ficha: Ficha, opciones: OpcionesMetrado | None = None) -> Metrado:
         pesos.append(total)
         centros.append((sum(p * x for p, x, _ in masa) / total, sum(p * y for p, _, y in masa) / total))
 
-    return Metrado(n, panos, puntuales, peso_propio, columnas, pesos, centros, advertencias)
+    return Metrado(n, panos, puntuales, peso_propio, columnas, pesos, centros, advertencias, vigas)

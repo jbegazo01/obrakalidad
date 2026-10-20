@@ -79,9 +79,12 @@ geometria:
     - {desde: [A, 4], hasta: [B, 5], tipo: aligerado, h_m: 0.17, direccion: x}
     - {desde: [B, 4], hasta: [C, 5], tipo: aligerado, h_m: 0.17, direccion: x}
   huecos:
-    # Escalera de dos tramos: peso en planta 0,60 (losa inclinada y pasos) + 0,10 acabados.
-    - {desde: [A, 3], hasta: [2.40, 4], nombre: ESCALERA, carga_muerta_tonf_m2: 0.70,
-       carga_viva_tonf_m2: 0.20, apoyos: [MX-2, MX-4]}
+    # Escalera en U de dos tramos: cada tramo se apoya en la losa del piso (muro MX-2) y en el
+    # descanso, que se apoya en el muro MY-3 y en la viga V-106. Peso en planta 0,62 (garganta
+    # 0,15 y pasos) + 0,10 acabados.
+    - {desde: [A, 3], hasta: [2.40, 4], nombre: ESCALERA, carga_muerta_tonf_m2: 0.72,
+       carga_viva_tonf_m2: 0.20, apoyos: [MX-2, MY-3, V-106],
+       escalera: {descanso_m: 1.20, paso_m: 0.28, garganta_m: 0.15}}
 
 # Muros portantes, por paño entre columnas de confinamiento.
 muros:

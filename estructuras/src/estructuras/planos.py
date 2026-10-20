@@ -497,6 +497,9 @@ def _tipos_cimiento(cim) -> dict:
         tipos[f"ZP-{k}"] = {"ancho": c.ancho, "elementos": [c]}
     for k, c in enumerate([c for c in cim.cimientos if c.tipo == "aislada"], start=1):
         tipos[f"Z-{k}"] = {"ancho": c.ancho, "elementos": [c]}
+    for c in cim.cimientos:
+        if c.tipo == "combinado":
+            tipos[c.elemento] = {"ancho": c.ancho, "elementos": [c]}
     return tipos
 
 

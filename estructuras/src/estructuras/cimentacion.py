@@ -12,7 +12,7 @@ Unidades: tonf, m.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .albanileria import ResultadoAlbanileria, gravedad_muro
 
@@ -53,6 +53,9 @@ class Cimiento:
     P: float  # tonf, carga de servicio D + L
     q_servicio: float  # tonf/m²
     excentrico: bool = False  # cimiento en lindero, desplazado hacia el interior del lote
+    componentes: list[str] = field(default_factory=list)  # elementos de un cimiento combinado
+    M_sismo: float = 0.0  # tonf·m, momento del sismo moderado en el plano del cimiento combinado
+    q_sismo: float = 0.0  # tonf/m², presión máxima con sismo
 
     @property
     def area(self) -> float:
@@ -83,11 +86,23 @@ class ResultadoCimentacion:
     @property
     def cumple(self) -> bool:
         return (all(c.q_servicio <= self.q_neta + 1e-9 for c in self.cimientos)
+                and all(c.q_sismo <= INCREMENTO_SISMO * self.q_neta + 1e-9 for c in self.cimientos)
                 and all(v.q_max <= INCREMENTO_SISMO * self.q_neta + 1e-9 and v.q_min >= 0 for v in self.sismo))
 
 
 def _arriba(x: float, paso: float) -> float:
     return round(math.ceil(x / paso - 1e-9) * paso, 3)
+
+
+def presion_maxima(P: float, M: float, B: float, L: float) -> float:
+    """Presión máxima bajo una zapata B × L con momento en la dirección de L: distribución
+    trapezoidal, o triangular si la excentricidad supera L/6 (infinito si e ≥ L/2)."""
+    e = abs(M) / P if P > 0 else float("inf")
+    if e <= L / 6:
+        return P / (B * L) * (1 + 6 * e / L)
+    if e >= L / 2:
+        return float("inf")
+    return 2 * P / (3 * B * (L / 2 - e))
 
 
 def disenar(res: ResultadoAlbanileria, opciones: OpcionesCimentacion | None = None) -> ResultadoCimentacion:
@@ -142,6 +157,8 @@ def disenar(res: ResultadoAlbanileria, opciones: OpcionesCimentacion | None = No
         lado = max(_arriba(math.sqrt(P / q_neta), op.paso), 0.80)
         cimientos.append(Cimiento(c.id, "aislada", c.centro, "x", lado, lado, 0.50, P, P / lado**2))
 
+    cimientos = _combinar_placas(res, cimientos, q_neta, op, observaciones)
+
     sismo = verificar_sismo(res, cimientos)
     for c in cimientos:
         if c.q_servicio > q_neta + 1e-9:
@@ -153,10 +170,77 @@ def disenar(res: ResultadoAlbanileria, opciones: OpcionesCimentacion | None = No
         if v.q_min < 0:
             observaciones.append(f"NO CUMPLE: tracción en la cimentación con sismo en {v.direccion} "
                                  f"(q mín = {v.q_min:.1f} tonf/m²).")
-    if any(c.tipo == "placa" for c in cimientos):
-        observaciones.append("Cimientos de placas: ancho preliminar; unirlos a la retícula de cimientos corridos "
-                             "y diseñar su refuerzo con la E.060.")
     return ResultadoCimentacion(q_adm, q_neta, op, cimientos, sismo, observaciones)
+
+
+def _carga_alas(res: ResultadoAlbanileria, ids: list[str]) -> float:
+    from .muros import alas
+    from .normas import e060, e070
+
+    Ec_sobre_Em = e060.modulo_elasticidad(res.ficha.fc) / e070.modulo_elasticidad(
+        e070.unidad(res.ficha.unidad_albanileria).fm)
+    total = 0.0
+    vistos = set()
+    for i in ids:
+        w = res.muro(i)
+        for ala in alas(w, res.muros, Ec_sobre_Em):
+            clave = (ala.muro, round(ala.posicion, 3), ala.lado)
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            t = res.muro(ala.muro)
+            _, L_v, D_base, _ = gravedad_muro(t, res.metrado, 1)
+            total += (D_base + L_v) / t.L * ala.ancho
+    return total
+
+
+def _combinar_placas(res: ResultadoAlbanileria, cimientos: list[Cimiento], q_neta: float,
+                     op: OpcionesCimentacion, observaciones: list[str]) -> list[Cimiento]:
+    """Las placas no pueden equilibrar su momento sísmico con un cimiento propio (poca carga
+    axial). En cada eje con placas se forma un cimiento combinado continuo que une las placas,
+    las columnas aisladas y los muros de ese eje, dimensionado con la carga total y la suma de
+    los momentos de las placas (sismo moderado), con +30 % de capacidad (E.060 15.2.4)."""
+    placas = [c for c in cimientos if c.tipo == "placa"]
+    if not placas:
+        return cimientos
+    usados: set[int] = set()
+    nuevos = []
+    for k, pl in enumerate(placas, start=1):
+        if id(pl) in usados:
+            continue
+        d = pl.direccion
+        linea = pl.centro[1] if d == "x" else pl.centro[0]
+        en_linea = [c for c in cimientos
+                    if c.tipo in ("placa", "aislada", "corrido") and id(c) not in usados
+                    and abs((c.centro[1] if d == "x" else c.centro[0]) - linea) < 1e-6
+                    and (c.tipo == "aislada" or c.direccion == d)]
+        a = min((c.centro[0] if d == "x" else c.centro[1]) - (c.largo / 2 if c.tipo != "aislada" else c.ancho / 2)
+                for c in en_linea)
+        b = max((c.centro[0] if d == "x" else c.centro[1]) + (c.largo / 2 if c.tipo != "aislada" else c.ancho / 2)
+                for c in en_linea)
+        largo = b - a
+        P = sum(c.P for c in en_linea)
+        # Los muros transversales monolíticos con los extremos del cimiento aportan su carga
+        # sobre el ancho de ala del art. 24.6 de la E.070 (25 % de su longitud o 6t).
+        P += _carga_alas(res, [c.elemento for c in en_linea if c.tipo != "aislada"])
+        M = sum(res.modelo.combinar(c.elemento).M[0] / 2 for c in en_linea if c.tipo == "placa")
+        B = max(c.ancho for c in en_linea)
+        while (presion_maxima(P, M, B, largo) > INCREMENTO_SISMO * q_neta or P / (B * largo) > q_neta) and B < 3.0:
+            B = round(B + op.paso, 3)
+        centro = ((a + b) / 2, linea) if d == "x" else (linea, (a + b) / 2)
+        nombre = f"ZC-{len(nuevos) + 1}"
+        if presion_maxima(P, M, B, largo) > INCREMENTO_SISMO * q_neta:
+            observaciones.append(f"NO CUMPLE: {nombre} no equilibra el momento de las placas con B ≤ 3 m; "
+                                 "alargar las placas o unirlas con vigas de cimentación a otros muros.")
+        nuevos.append(Cimiento(nombre, "combinado", centro, d, largo, B, 0.60, P, P / (B * largo),
+                               componentes=[c.elemento for c in en_linea], M_sismo=M,
+                               q_sismo=presion_maxima(P, M, B, largo)))
+        usados |= {id(c) for c in en_linea}
+        observaciones.append(
+            f"{nombre}: cimiento combinado de concreto armado en el eje de {', '.join(c.elemento for c in en_linea)} "
+            f"(B = {B:.2f} m, L = {largo:.2f} m) para el momento de las placas (M = {M:.1f} tonf·m)."
+        )
+    return [c for c in cimientos if id(c) not in usados] + nuevos
 
 
 def verificar_sismo(res: ResultadoAlbanileria, cimientos: list[Cimiento]) -> list[VerificacionSismo]:

@@ -52,7 +52,8 @@ class Hueco:
     # Escaleras: carga en planta (tonf/m²) que se reparte por igual entre los muros de apoyo.
     carga_muerta: float = 0.0
     carga_viva: float = 0.0
-    apoyos: list[str] = field(default_factory=list)  # ids de paños de muro
+    apoyos: list[str] = field(default_factory=list)  # ids de paños de muro o de vigas
+    escalera: dict = field(default_factory=dict)  # descanso_m, paso_m, garganta_m (diseño E.060)
 
     @property
     def area(self) -> float:
@@ -136,6 +137,7 @@ def leer_geometria(datos: dict) -> Geometria:
                 float(h.get("carga_muerta_tonf_m2", 0.0)),
                 float(h.get("carga_viva_tonf_m2", 0.0)),
                 [str(a) for a in h.get("apoyos") or []],
+                dict(h.get("escalera") or {}),
             )
         )
     return geo
