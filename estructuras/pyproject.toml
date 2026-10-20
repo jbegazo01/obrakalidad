@@ -20,7 +20,7 @@ estructuras = "estructuras.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-estructuras = ["plantillas/*.yaml"]
+estructuras = ["plantillas/*.yaml", "datos/*.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

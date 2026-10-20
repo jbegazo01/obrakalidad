@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 from .geometria import Geometria, direccion_segmento, leer_geometria, resolver_punto
-from .normas import e030, e070
+from .normas import e030, e070, zonificacion
 from .normas.e070 import Muro
 
 
@@ -76,6 +76,28 @@ def _requerido(datos: dict, clave: str, seccion: str):
     if datos.get(clave) is None:
         raise FichaInvalida(f"Falta '{seccion}.{clave}' en la ficha.")
     return datos[clave]
+
+
+def _zona(sitio: dict, ubicacion: dict) -> int:
+    """Zona sísmica de la ficha o, si falta, la del distrito según el Anexo II de la E.030.
+    Si se dan ambas y no coinciden, es un error."""
+    distrito = ubicacion.get("distrito")
+    zona_distrito = None
+    if distrito:
+        try:
+            zona_distrito = zonificacion.zona_de(distrito, ubicacion.get("provincia"), ubicacion.get("departamento"))
+        except ValueError as e:
+            if sitio.get("zona") is None:
+                raise FichaInvalida(str(e)) from e
+    if sitio.get("zona") is None:
+        if zona_distrito is None:
+            raise FichaInvalida("Falta 'sitio.zona' o 'proyecto.ubicacion.distrito'.")
+        return zona_distrito
+    zona = int(sitio["zona"])
+    if zona_distrito is not None and zona != zona_distrito:
+        raise FichaInvalida(f"sitio.zona = {zona} no coincide con el distrito {distrito} (zona {zona_distrito}, "
+                            "E.030 Anexo II).")
+    return zona
 
 
 def _leer_muro(m: dict, geometria: Geometria | None) -> Muro:
@@ -155,7 +177,7 @@ def ficha_desde_dict(datos: dict) -> Ficha:
         ubicacion=proyecto.get("ubicacion") or {},
         propietario=proyecto.get("propietario", ""),
         norma_e030=str(proyecto.get("norma_e030", e030.VERSION)),
-        zona=int(_requerido(sitio, "zona", "sitio")),
+        zona=_zona(sitio, proyecto.get("ubicacion") or {}),
         perfil_suelo=str(_requerido(sitio, "perfil_suelo", "sitio")),
         vs30=sitio.get("vs30_m_s"),
         ts=sitio.get("ts_s"),

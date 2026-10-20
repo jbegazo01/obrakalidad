@@ -45,7 +45,7 @@ NORMAS: tuple[Norma, ...] = (
             "Proyectos con expediente en elaboración o aprobado, licencia en trámite o "
             "aprobada, o anteproyecto en consulta antes de la vigencia pueden seguir con el "
             "texto anterior (R.M. 217-2026). Ese texto anterior aún no está implementado.",
-            "Anexo II (zona por distrito) aún no está cargado: la zona se ingresa manualmente.",
+            "Anexo II cargado (1892 distritos): la zona se obtiene del distrito de la ficha.",
         ),
     ),
     Norma(

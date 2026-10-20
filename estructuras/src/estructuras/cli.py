@@ -46,6 +46,18 @@ def cmd_irregularidades(_args) -> int:
     return 0
 
 
+def cmd_zona(args) -> int:
+    from .normas import zonificacion
+
+    encontrados = zonificacion.buscar(args.distrito, args.provincia, args.departamento)
+    if not encontrados:
+        print(f"Distrito {args.distrito!r} no figura en el Anexo II de la E.030.", file=sys.stderr)
+        return 1
+    for d in encontrados:
+        print(f"{d.distrito} ({d.provincia}, {d.departamento}): zona {d.zona}, Z = {_f(e030.FACTOR_ZONA[d.zona], 2)}")
+    return 0
+
+
 def cmd_nuevo(args) -> int:
     destino = Path(args.archivo)
     if destino.exists():
@@ -261,6 +273,12 @@ def construir_parser() -> argparse.ArgumentParser:
     sub.add_parser("normas", help="Normas implementadas y su vigencia").set_defaults(func=cmd_normas)
     sub.add_parser("sistemas", help="Sistemas estructurales de la E.030").set_defaults(func=cmd_sistemas)
     sub.add_parser("irregularidades", help="Irregularidades de la E.030").set_defaults(func=cmd_irregularidades)
+
+    zona = sub.add_parser("zona", help="Zona sísmica de un distrito (E.030 Anexo II)")
+    zona.add_argument("distrito")
+    zona.add_argument("--provincia")
+    zona.add_argument("--departamento")
+    zona.set_defaults(func=cmd_zona)
 
     nuevo = sub.add_parser("nuevo", help="Crear una ficha de proyecto en blanco")
     nuevo.add_argument("archivo")
